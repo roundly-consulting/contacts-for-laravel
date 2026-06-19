@@ -1,0 +1,83 @@
+<?php
+
+declare(strict_types=1);
+
+namespace RoundlyConsulting\Contacts\Actions;
+
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Database\Eloquent\Model;
+use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
+use RoundlyConsulting\Contacts\Enums\ContactType;
+use RoundlyConsulting\Contacts\Models\Contact;
+
+final class SyncContactsAction
+{
+    public function __construct(
+        private readonly AddContactAction $add,
+        private readonly UpdateContactAction $update,
+        private readonly DeleteContactAction $delete,
+    ) {}
+
+    /**
+     * Reconcile an owner's contacts of a single kind to match the given set.
+     *
+     * Existing contacts whose value matches are updated in place; missing ones
+     * are created; absent ones are deleted. Positions follow input order.
+     *
+     * @param  list<ContactData>  $items
+     * @return EloquentCollection<int, Contact>
+     */
+    public function execute(Model $owner, ContactType $type, array $items): EloquentCollection
+    {
+        /** @var class-string<Contact> $model */
+        $model = config('contacts.model', Contact::class);
+
+        /** @var EloquentCollection<int, Contact> $existing */
+        $existing = $owner->morphMany($model, 'owner')
+            ->where('type', $type->value)
+            ->get();
+
+        /** @var EloquentCollection<int, Contact> $result */
+        $result = new EloquentCollection;
+        $keptIds = [];
+
+        $position = 0;
+
+        foreach ($items as $item) {
+            $data = new ContactData(
+                type: $type,
+                value: $item->value,
+                label: $item->label,
+                name: $item->name,
+                category: $item->category,
+                isPrimary: $item->isPrimary,
+                position: $position,
+                meta: $item->meta,
+            );
+
+            $normalizedValue = $type->normalize($item->value);
+
+            $match = $existing->first(
+                fn (Contact $contact): bool => $contact->value === $normalizedValue,
+            );
+
+            if ($match instanceof Contact) {
+                $contact = $this->update->execute($match, $data);
+                $keptIds[] = $match->getKey();
+            } else {
+                $contact = $this->add->execute($owner, $data);
+            }
+
+            $result->push($contact);
+            $position++;
+        }
+
+        foreach ($existing as $contact) {
+            if (! in_array($contact->getKey(), $keptIds, true)) {
+                $this->delete->execute($contact);
+            }
+        }
+
+        return $result;
+    }
+}
