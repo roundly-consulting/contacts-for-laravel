@@ -23,6 +23,7 @@ abstract class TestCase extends Orchestra
 
     public function getEnvironmentSetUp($app): void
     {
+        $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
         $app['config']->set('database.default', 'testing');
         $app['config']->set('database.connections.testing', [
             'driver' => 'sqlite',
@@ -33,6 +34,9 @@ abstract class TestCase extends Orchestra
         $migration = include __DIR__.'/../database/migrations/create_contacts_table.php';
         $migration->up();
 
-        Schema::create('users', fn (Blueprint $table) => $table->id());
+        Schema::create('users', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name')->nullable();
+        });
     }
 }
