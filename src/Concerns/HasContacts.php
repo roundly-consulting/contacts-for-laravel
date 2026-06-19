@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Contacts\Concerns;
 
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use RoundlyConsulting\Contacts\ContactsManager;
+use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
+use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
 
 /**
@@ -22,5 +26,76 @@ trait HasContacts
         $model = config('contacts.model', Contact::class);
 
         return $this->morphMany($model, 'owner');
+    }
+
+    public function addContact(ContactData $data): Contact
+    {
+        return app(ContactsManager::class)->add($this, $data);
+    }
+
+    public function addEmail(string $value, ?string $label = null, bool $primary = false): Contact
+    {
+        return $this->addContact(new ContactData(
+            type: ContactType::Email,
+            value: $value,
+            label: $label,
+            isPrimary: $primary,
+        ));
+    }
+
+    public function addPhone(string $value, ?string $label = null, bool $primary = false): Contact
+    {
+        return $this->addContact(new ContactData(
+            type: ContactType::Phone,
+            value: $value,
+            label: $label,
+            isPrimary: $primary,
+        ));
+    }
+
+    public function addUrl(string $value, ?string $label = null, bool $primary = false): Contact
+    {
+        return $this->addContact(new ContactData(
+            type: ContactType::Url,
+            value: $value,
+            label: $label,
+            isPrimary: $primary,
+        ));
+    }
+
+    public function addAddress(string $value, ?string $label = null, bool $primary = false): Contact
+    {
+        return $this->addContact(new ContactData(
+            type: ContactType::Address,
+            value: $value,
+            label: $label,
+            isPrimary: $primary,
+        ));
+    }
+
+    /**
+     * @return EloquentCollection<int, Contact>
+     */
+    public function contactsOfType(ContactType|string $type): EloquentCollection
+    {
+        /** @var EloquentCollection<int, Contact> $contacts */
+        $contacts = $this->contacts()->ofType($type)->ordered()->get();
+
+        return $contacts;
+    }
+
+    public function primaryContact(ContactType|string $type): ?Contact
+    {
+        return $this->contacts()->ofType($type)->primary()->ordered()->first();
+    }
+
+    public function primaryEmail(): ?Contact
+    {
+        return $this->primaryContact(ContactType::Email);
+    }
+
+    public function primaryPhone(): ?Contact
+    {
+        return $this->primaryContact(ContactType::Phone);
     }
 }
