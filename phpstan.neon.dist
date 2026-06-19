@@ -6,3 +6,5 @@ parameters:
         - config
         - tests/Models
     checkModelProperties: true
+    configDirectories:
+        - config

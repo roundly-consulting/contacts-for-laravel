@@ -1,0 +1,106 @@
+<?php
+
+declare(strict_types=1);
+
+namespace RoundlyConsulting\Contacts\Enums;
+
+use RoundlyConsulting\Contacts\Support\ContactValueNormalizer;
+
+enum ContactType: string
+{
+    case Email = 'email';
+    case Phone = 'phone';
+    case Address = 'address';
+    case Url = 'url';
+    case Social = 'social';
+    case Custom = 'custom';
+
+    /**
+     * Resolve a stored type string to a case, falling back to Custom for any
+     * value outside the six canonical kinds (e.g. config-defined custom kinds).
+     */
+    public static function fromValueOrCustom(?string $type): self
+    {
+        if ($type === null) {
+            return self::Custom;
+        }
+
+        return self::tryFrom($type) ?? self::Custom;
+    }
+
+    /**
+     * Human label, translatable via contacts::types.* with an English fallback,
+     * overridable per custom kind through config.
+     */
+    public function label(): string
+    {
+        $configured = config('contacts.types.'.$this->value.'.label');
+
+        if (is_string($configured) && $configured !== '') {
+            return $configured;
+        }
+
+        $key = 'contacts::types.'.$this->value;
+        $translated = trans($key);
+
+        if (is_string($translated) && $translated !== $key) {
+            return $translated;
+        }
+
+        return ucfirst($this->value);
+    }
+
+    /**
+     * Icon name string, overridable via config('contacts.types.<key>.icon').
+     */
+    public function icon(): string
+    {
+        $configured = config('contacts.types.'.$this->value.'.icon');
+
+        if (is_string($configured) && $configured !== '') {
+            return $configured;
+        }
+
+        return match ($this) {
+            self::Email => 'envelope',
+            self::Phone => 'phone',
+            self::Address => 'map-pin',
+            self::Url => 'globe-alt',
+            self::Social => 'at-symbol',
+            self::Custom => 'identification',
+        };
+    }
+
+    /**
+     * Illuminate validation rule strings for this kind. Custom/Social/Address
+     * rules can be overridden through config('contacts.types.<key>.rules').
+     *
+     * @return list<string>
+     */
+    public function validationRules(): array
+    {
+        $configured = config('contacts.types.'.$this->value.'.rules');
+
+        if (is_array($configured) && $configured !== []) {
+            /** @var list<string> $rules */
+            $rules = array_values(array_filter($configured, 'is_string'));
+
+            return $rules;
+        }
+
+        return match ($this) {
+            self::Email => ['required', 'string', 'email'],
+            self::Phone => ['required', 'string', 'regex:/^\+?[1-9]\d{6,14}$/'],
+            self::Url => ['required', 'string', 'url'],
+            default => ['required', 'string'],
+        };
+    }
+
+    /**
+     * Canonical form of a value for this kind.
+     */
+    public function normalize(string $value): string
+    {
+        return ContactValueNormalizer::normalize($this, $value);
+    }
+}
