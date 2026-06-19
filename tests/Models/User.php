@@ -6,6 +6,7 @@ namespace RoundlyConsulting\Contacts\Tests\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Contacts\Concerns\HasContacts;
+use RoundlyConsulting\Contacts\Concerns\RoutesNotificationsViaContacts;
 
 /**
  * @property int $id
@@ -13,6 +14,7 @@ use RoundlyConsulting\Contacts\Concerns\HasContacts;
 final class User extends Model
 {
     use HasContacts;
+    use RoutesNotificationsViaContacts;
 
     protected $guarded = [];
 
