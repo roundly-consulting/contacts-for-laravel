@@ -62,3 +62,23 @@ it('asserts verify and primary without a specific contact', function (): void {
     $fake->assertVerified();
     $fake->assertPrimarySet();
 });
+
+it('records verification request and confirm calls', function (): void {
+    $fake = Contacts::fake();
+    $contact = new Contact;
+
+    $token = Contacts::requestVerification($contact);
+    Contacts::confirmVerification($contact, $token);
+
+    $fake->assertVerificationRequested();
+    $fake->assertVerificationRequested($contact);
+
+    expect($token)->toBe('fake-token')
+        ->and($fake->verificationConfirmed)->toHaveCount(1);
+});
+
+it('exposes validation rules for a contacts array', function (): void {
+    $rules = Contacts::validationRules('people');
+
+    expect($rules)->toHaveKey('people.*.value');
+});

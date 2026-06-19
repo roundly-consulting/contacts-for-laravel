@@ -6,6 +6,7 @@ namespace RoundlyConsulting\Contacts\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Hash;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
 
@@ -76,6 +77,17 @@ final class ContactFactory extends Factory
     {
         return $this->state(fn (): array => [
             'verified_at' => now(),
+            'verification_token' => null,
+            'verification_expires_at' => null,
+        ]);
+    }
+
+    public function pendingVerification(): self
+    {
+        return $this->state(fn (): array => [
+            'verified_at' => null,
+            'verification_token' => Hash::make('123456'),
+            'verification_expires_at' => now()->addHour(),
         ]);
     }
 

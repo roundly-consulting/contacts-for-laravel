@@ -13,6 +13,7 @@ use RoundlyConsulting\Contacts\ContactsManager;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
+use SensitiveParameter;
 
 /**
  * Recording stand-in for ContactsManager used by host-app tests. It records
@@ -34,6 +35,12 @@ final class FakeContactsManager extends ContactsManager
 
     /** @var list<Contact> */
     public array $verified = [];
+
+    /** @var list<Contact> */
+    public array $verificationRequested = [];
+
+    /** @var list<array{contact: Contact, token: string}> */
+    public array $verificationConfirmed = [];
 
     /** @var list<array{owner: Model, type: ContactType, items: list<ContactData>}> */
     public array $synced = [];
@@ -73,6 +80,20 @@ final class FakeContactsManager extends ContactsManager
     public function verify(Contact $contact, ?CarbonInterface $at = null): Contact
     {
         $this->verified[] = $contact;
+
+        return $contact;
+    }
+
+    public function requestVerification(Contact $contact): string
+    {
+        $this->verificationRequested[] = $contact;
+
+        return 'fake-token';
+    }
+
+    public function confirmVerification(Contact $contact, #[SensitiveParameter] string $token): Contact
+    {
+        $this->verificationConfirmed[] = ['contact' => $contact, 'token' => $token];
 
         return $contact;
     }
@@ -140,6 +161,22 @@ final class FakeContactsManager extends ContactsManager
         );
 
         Assert::assertNotEmpty($matched, 'The given contact was not set as primary.');
+    }
+
+    public function assertVerificationRequested(?Contact $contact = null): void
+    {
+        if ($contact === null) {
+            Assert::assertNotEmpty($this->verificationRequested, 'No contact verification was requested.');
+
+            return;
+        }
+
+        $matched = array_filter(
+            $this->verificationRequested,
+            fn (Contact $requested): bool => $requested->is($contact),
+        );
+
+        Assert::assertNotEmpty($matched, 'No verification was requested for the given contact.');
     }
 
     public function assertNothingAdded(): void

@@ -11,9 +11,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
+use RoundlyConsulting\Contacts\Actions\ConfirmContactVerificationAction;
+use RoundlyConsulting\Contacts\Actions\RequestContactVerificationAction;
 use RoundlyConsulting\Contacts\Database\Factories\ContactFactory;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Support\VCardExporter;
+use SensitiveParameter;
 
 /**
  * @property int $id
@@ -27,6 +30,8 @@ use RoundlyConsulting\Contacts\Support\VCardExporter;
  * @property bool $is_primary
  * @property int $position
  * @property CarbonInterface|null $verified_at
+ * @property string|null $verification_token
+ * @property CarbonInterface|null $verification_expires_at
  * @property Collection<array-key, mixed>|null $meta
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
@@ -41,6 +46,9 @@ final class Contact extends Model
     use SoftDeletes;
 
     protected $guarded = [];
+
+    /** @var list<string> */
+    protected $hidden = ['verification_token'];
 
     /**
      * @return MorphTo<Model, $this>
@@ -126,6 +134,18 @@ final class Contact extends Model
     }
 
     /**
+     * Contacts that are unverified but currently hold a verification token.
+     *
+     * @param  Builder<Contact>  $query
+     * @return Builder<Contact>
+     */
+    public function scopePendingVerification(Builder $query): Builder
+    {
+        return $query->whereNull('verified_at')
+            ->whereNotNull('verification_token');
+    }
+
+    /**
      * @param  Builder<Contact>  $query
      * @return Builder<Contact>
      */
@@ -163,6 +183,28 @@ final class Contact extends Model
         return VCardExporter::forContacts([$this]);
     }
 
+    public function isVerified(): bool
+    {
+        return $this->verified_at !== null;
+    }
+
+    /**
+     * Generate a verification token, persist its hash, and fire
+     * ContactVerificationRequested with the plaintext for the host to deliver.
+     */
+    public function requestVerification(): string
+    {
+        return app(RequestContactVerificationAction::class)->execute($this);
+    }
+
+    /**
+     * Confirm the contact against a plaintext token, marking it verified.
+     */
+    public function confirmVerification(#[SensitiveParameter] string $token): self
+    {
+        return app(ConfirmContactVerificationAction::class)->execute($this, $token);
+    }
+
     protected static function newFactory(): ContactFactory
     {
         return ContactFactory::new();
@@ -193,6 +235,7 @@ final class Contact extends Model
             'is_primary' => 'boolean',
             'position' => 'integer',
             'verified_at' => 'datetime',
+            'verification_expires_at' => 'datetime',
             'meta' => 'collection',
         ];
     }

@@ -38,3 +38,12 @@ it('sets a type via ofType state', function (): void {
 
     expect($contact->type)->toBe(ContactType::Social);
 });
+
+it('builds a pending verification state matched by the scope', function (): void {
+    $pending = Contact::factory()->email()->pendingVerification()->create();
+    Contact::factory()->email()->verified()->create();
+
+    expect($pending->verified_at)->toBeNull()
+        ->and($pending->verification_token)->not->toBeNull()
+        ->and(Contact::query()->pendingVerification()->count())->toBe(1);
+});

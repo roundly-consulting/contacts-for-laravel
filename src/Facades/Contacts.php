@@ -22,8 +22,11 @@ use RoundlyConsulting\Contacts\Testing\FakeContactsManager;
  * @method static PendingContact for(Model $owner)
  * @method static Contact setPrimary(Contact $contact)
  * @method static Contact verify(Contact $contact, ?CarbonInterface $at = null)
+ * @method static string requestVerification(Contact $contact)
+ * @method static Contact confirmVerification(Contact $contact, string $token)
  * @method static EloquentCollection<int, Contact> sync(Model $owner, ContactType $type, list<ContactData> $items)
  * @method static string vCard(Model $owner)
+ * @method static array<string, list<string|\Illuminate\Contracts\Validation\ValidationRule>> validationRules(string $key = 'contacts')
  *
  * @see ContactsManager
  */

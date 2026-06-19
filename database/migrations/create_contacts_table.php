@@ -24,6 +24,8 @@ return new class extends Migration
             $table->boolean('is_primary')->default(false);
             $table->unsignedInteger('position')->default(0);
             $table->timestamp('verified_at')->nullable();
+            $table->string('verification_token')->nullable();
+            $table->timestamp('verification_expires_at')->nullable();
             $table->json('meta')->nullable();
             $table->timestamps();
             $table->softDeletes();

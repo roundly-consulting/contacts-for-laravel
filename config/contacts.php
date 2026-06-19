@@ -68,6 +68,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Verification
+    |--------------------------------------------------------------------------
+    |
+    | Controls the channel-agnostic verification token/code flow. Only a hash
+    | of the token is ever stored. Delivery is up to the host app, which
+    | listens for the ContactVerificationRequested event.
+    |
+    | - ttl: how many minutes a generated token stays valid.
+    | - style: "code" for a numeric one-time code, "token" for a random string.
+    | - code_length: number of digits when style is "code".
+    | - token_length: number of bytes of randomness when style is "token"
+    |   (the token is hex-encoded, so the string is twice this length).
+    |
+    */
+
+    'verification' => [
+        'ttl' => (int) env('CONTACTS_VERIFICATION_TTL', 60),
+        'style' => env('CONTACTS_VERIFICATION_STYLE', 'code'),
+        'code_length' => (int) env('CONTACTS_VERIFICATION_CODE_LENGTH', 6),
+        'token_length' => (int) env('CONTACTS_VERIFICATION_TOKEN_LENGTH', 32),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Contact Types
     |--------------------------------------------------------------------------
     |
