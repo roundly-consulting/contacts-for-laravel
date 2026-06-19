@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use RoundlyConsulting\Contacts\Enums\ContactType;
+use RoundlyConsulting\Contacts\Rules\ValidContactValue;
 
 it('resolves known and unknown types', function (): void {
     expect(ContactType::fromValueOrCustom('email'))->toBe(ContactType::Email)
@@ -67,4 +68,17 @@ it('reads config validation rules for a kind', function (): void {
     config()->set('contacts.types.social.rules', ['required', 'string', 'min:2']);
 
     expect(ContactType::Social->validationRules())->toBe(['required', 'string', 'min:2']);
+});
+
+it('appends ValidContactValue to a ready rule set', function (): void {
+    $rules = ContactType::Email->rules();
+
+    expect($rules)->toContain('email')
+        ->and(end($rules))->toBeInstanceOf(ValidContactValue::class);
+});
+
+it('exposes a static rulesFor helper', function (): void {
+    $rules = ContactType::rulesFor(ContactType::Phone);
+
+    expect(end($rules))->toBeInstanceOf(ValidContactValue::class);
 });

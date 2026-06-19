@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Contacts\Enums;
 
+use RoundlyConsulting\Contacts\Rules\ValidContactValue;
 use RoundlyConsulting\Contacts\Support\ContactValueNormalizer;
 
 enum ContactType: string
@@ -94,6 +95,29 @@ enum ContactType: string
             self::Url => ['required', 'string', 'url'],
             default => ['required', 'string'],
         };
+    }
+
+    /**
+     * Ready-to-use FormRequest rules for a single value of this kind, ending
+     * with the reusable ValidContactValue rule. Drop it straight into a request:
+     *
+     *     'email' => ContactType::Email->rules(),
+     *
+     * @return list<string|ValidContactValue>
+     */
+    public function rules(): array
+    {
+        return [...$this->validationRules(), new ValidContactValue($this)];
+    }
+
+    /**
+     * Static convenience equivalent of {@see self::rules()}.
+     *
+     * @return list<string|ValidContactValue>
+     */
+    public static function rulesFor(self $type): array
+    {
+        return $type->rules();
     }
 
     /**
