@@ -41,6 +41,12 @@ return [
     'auto_primary' => true,
     'require_owner_for_primary' => false,
     'default_country_code' => env('CONTACTS_DEFAULT_COUNTRY_CODE'),
+    'verification' => [
+        'ttl' => (int) env('CONTACTS_VERIFICATION_TTL', 60),
+        'style' => env('CONTACTS_VERIFICATION_STYLE', 'code'),
+        'code_length' => (int) env('CONTACTS_VERIFICATION_CODE_LENGTH', 6),
+        'token_length' => (int) env('CONTACTS_VERIFICATION_TOKEN_LENGTH', 32),
+    ],
     'types' => [
         // 'whatsapp' => ['label' => 'WhatsApp', 'icon' => 'chat', 'rules' => ['required', 'string']],
     ],
@@ -54,6 +60,10 @@ return [
 | `auto_primary` | `bool` | `true` | When set, the first contact of a kind added for an owner becomes its primary. |
 | `require_owner_for_primary` | `bool` | `false` | When set, only owned contacts may be primary; otherwise a `PrimaryContactConflict` is thrown. |
 | `default_country_code` | `?string` | `env('CONTACTS_DEFAULT_COUNTRY_CODE')` | Best-effort dialling prefix added to phone numbers entered without a leading `+`. |
+| `verification.ttl` | `int` | `60` (`CONTACTS_VERIFICATION_TTL`) | Minutes a verification token stays valid. |
+| `verification.style` | `string` | `code` (`CONTACTS_VERIFICATION_STYLE`) | `code` for a numeric one-time code, `token` for a random hex string. |
+| `verification.code_length` | `int` | `6` (`CONTACTS_VERIFICATION_CODE_LENGTH`) | Number of digits when style is `code`. |
+| `verification.token_length` | `int` | `32` (`CONTACTS_VERIFICATION_TOKEN_LENGTH`) | Bytes of randomness when style is `token` (hex-encoded, so the string is twice this). |
 | `types` | `array` | `[]` | Register custom kinds and override the label/icon/rules of built-in kinds. |
 
 ## Contact kinds
@@ -118,6 +128,38 @@ Contacts::verify($contact);
 Contacts::delete($contact);
 ```
 
+### Verifying a contact (token / code flow)
+
+The package generates a verification token, stores **only its hash** plus an expiry, and
+fires an event with the plaintext so your app delivers it over its own channel (mail, SMS,
+…). The package never sends anything.
+
+```php
+use RoundlyConsulting\Contacts\Facades\Contacts;
+
+// Generate a token and dispatch ContactVerificationRequested($contact, $plainToken).
+$token = Contacts::requestVerification($contact);   // or $contact->requestVerification()
+
+// Later, confirm with the token the user supplied.
+Contacts::confirmVerification($contact, $token);     // or $contact->confirmVerification($token)
+// On success: verified_at is set, token fields cleared, ContactVerified fires.
+```
+
+Deliver the token from a listener:
+
+```php
+use RoundlyConsulting\Contacts\Events\ContactVerificationRequested;
+
+Event::listen(function (ContactVerificationRequested $event): void {
+    // $event->contact, $event->plainToken — send your own mail/SMS here.
+});
+```
+
+Confirmation throws `InvalidVerificationToken` (wrong/absent token) or `VerificationExpired`
+(past the TTL). Both extend `ContactException`. Token TTL and style (numeric `code` vs random
+`token`) are configured under `contacts.verification`. The factory ships a
+`pendingVerification()` state and a `pendingVerification()` query scope.
+
 ### Syncing a set of contacts (e.g. a profile form)
 
 ```php
@@ -132,6 +174,8 @@ Contacts::sync($user, ContactType::Phone, [
 
 ### Reusing validation in a FormRequest
 
+`ValidContactValue` is a standalone, reusable `ValidationRule` — apply it to any field:
+
 ```php
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Rules\ValidContactValue;
@@ -139,6 +183,30 @@ use RoundlyConsulting\Contacts\Rules\ValidContactValue;
 $request->validate([
     'email' => ['required', new ValidContactValue(ContactType::Email)],
 ]);
+```
+
+`ContactType::rules()` returns a ready rule array (the kind's base rules plus
+`ValidContactValue`), so a FormRequest stays a one-liner:
+
+```php
+public function rules(): array
+{
+    return [
+        'email' => ContactType::Email->rules(),       // or ContactType::rulesFor(ContactType::Email)
+        'phone' => ContactType::Phone->rules(),
+    ];
+}
+```
+
+For a repeatable list of `{type, value}` pairs (e.g. a "manage contacts" form), generate
+`contacts.*` rules driven by the configured kinds:
+
+```php
+use RoundlyConsulting\Contacts\Facades\Contacts;
+use RoundlyConsulting\Contacts\Support\ContactRules;
+
+$request->validate(Contacts::validationRules());       // keys: contacts, contacts.*.type, contacts.*.value
+$request->validate(ContactRules::forArray('people'));  // custom prefix
 ```
 
 ### Query scopes
@@ -155,6 +223,7 @@ Contact::query()->withoutCategory()->get();
 Contact::query()->ofType(ContactType::Email)->get();   // or ->ofType('email')
 Contact::query()->primary()->get();
 Contact::query()->verified()->get();                   // ->verified(false) for unverified
+Contact::query()->pendingVerification()->get();        // unverified, token issued
 Contact::query()->search('alice')->get();              // name / value / label LIKE
 Contact::query()->ordered()->get();                    // by position, then id
 ```
@@ -166,6 +235,32 @@ CRM, …) without forking:
 
 `ContactAdded`, `ContactUpdated`, `ContactDeleted`, `ContactVerified`, `PrimaryContactChanged`
 — each carries the affected `Contact` (and the previous primary, where relevant).
+`ContactVerificationRequested` additionally carries the plaintext token for delivery.
+
+### Routing notifications through contacts
+
+Opt in by adding `RoutesNotificationsViaContacts` (alongside `HasContacts`) to a model. It
+resolves Laravel notification destinations from the owner's **primary** contacts:
+
+```php
+use RoundlyConsulting\Contacts\Concerns\HasContacts;
+use RoundlyConsulting\Contacts\Concerns\RoutesNotificationsViaContacts;
+
+class User extends Model
+{
+    use HasContacts;
+    use RoutesNotificationsViaContacts;
+}
+```
+
+It implements `routeNotificationForMail()` (primary email), `routeNotificationForVonage()`
+and `routeNotificationForTwilio()` (primary phone), each returning `null` when there's no
+primary of that kind so Laravel simply skips that channel.
+
+**Precedence:** the trait is intentionally separate from `HasContacts` and is **not** applied
+automatically, because host models often already use `Notifiable`. When you do add it, these
+`routeNotificationFor*()` methods take precedence over Notifiable's attribute-based routing
+for the mail, Vonage, and Twilio channels.
 
 ### vCard export
 
@@ -189,7 +284,30 @@ $fake->assertPrimarySet();
 ```
 
 Model factories ship states for ergonomic test setup: `email()`, `phone()`, `url()`,
-`address()`, `primary()`, `verified()`, `forOwner($model)`, and `ofType($type)`.
+`address()`, `primary()`, `verified()`, `pendingVerification()`, `forOwner($model)`, and
+`ofType($type)`.
+
+### Pest expectations
+
+Register the package's custom Pest matchers from your app's `tests/Pest.php`:
+
+```php
+use RoundlyConsulting\Contacts\Testing\ContactExpectations;
+
+ContactExpectations::register();
+```
+
+Then assert against any owner model:
+
+```php
+use RoundlyConsulting\Contacts\Enums\ContactType;
+
+expect($company)
+    ->toHaveContactOfType(ContactType::Email)
+    ->toHavePrimaryEmail('hello@acme.test')
+    ->toHavePrimaryContact(ContactType::Phone, '+421900000000')
+    ->toHaveVerifiedContact('hello@acme.test');
+```
 
 ### Backward compatibility
 
