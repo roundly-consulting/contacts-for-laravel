@@ -11,8 +11,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
+use RoundlyConsulting\Addresses\Contracts\Addressable;
+use RoundlyConsulting\Addresses\Traits\HasAddresses;
+use RoundlyConsulting\Connections\Concerns\HasConnections;
+use RoundlyConsulting\Connections\Contracts\Connectable;
 use RoundlyConsulting\Contacts\Actions\ConfirmContactVerificationAction;
 use RoundlyConsulting\Contacts\Actions\RequestContactVerificationAction;
+use RoundlyConsulting\Contacts\Concerns\HasContactRelations;
 use RoundlyConsulting\Contacts\Database\Factories\ContactFactory;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Support\VCardExporter;
@@ -38,8 +43,12 @@ use SensitiveParameter;
  * @property CarbonInterface|null $deleted_at
  * @property-read Model|null $owner
  */
-final class Contact extends Model
+final class Contact extends Model implements Addressable, Connectable
 {
+    use HasAddresses;
+    use HasConnections;
+    use HasContactRelations;
+
     /** @use HasFactory<ContactFactory> */
     use HasFactory;
 
@@ -189,6 +198,26 @@ final class Contact extends Model
     }
 
     /**
+     * A single-line render of this contact's primary structured address, falling
+     * back to the loose `value` when no structured address is attached. Keeps
+     * pre-integration rows (loose value, no Address) rendering correctly.
+     */
+    public function formattedAddress(): ?string
+    {
+        $address = $this->primaryAddress();
+
+        if ($address !== null) {
+            $formatted = $address->formatted();
+
+            if ($formatted !== '') {
+                return $formatted;
+            }
+        }
+
+        return $this->value;
+    }
+
+    /**
      * Generate a verification token, persist its hash, and fire
      * ContactVerificationRequested with the plaintext for the host to deliver.
      */
@@ -203,6 +232,17 @@ final class Contact extends Model
     public function confirmVerification(#[SensitiveParameter] string $token): self
     {
         return app(ConfirmContactVerificationAction::class)->execute($this, $token);
+    }
+
+    protected static function booted(): void
+    {
+        // Keep the structured address book and relationship edges from orphaning
+        // when a contact is removed.
+        self::deleted(function (Contact $contact): void {
+            $contact->addresses()->get()->each(static fn ($address) => $address->delete());
+            $contact->connections()->get()->each(static fn ($connection) => $connection->delete());
+            $contact->connectors()->get()->each(static fn ($connection) => $connection->delete());
+        });
     }
 
     protected static function newFactory(): ContactFactory
