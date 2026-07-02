@@ -7,6 +7,8 @@ namespace RoundlyConsulting\Contacts\Tests;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as Orchestra;
+use RoundlyConsulting\Addresses\AddressesServiceProvider;
+use RoundlyConsulting\Connections\ConnectionsServiceProvider;
 use RoundlyConsulting\Contacts\ContactsServiceProvider;
 
 abstract class TestCase extends Orchestra
@@ -17,6 +19,8 @@ abstract class TestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
+            AddressesServiceProvider::class,
+            ConnectionsServiceProvider::class,
             ContactsServiceProvider::class,
         ];
     }
@@ -33,6 +37,14 @@ abstract class TestCase extends Orchestra
 
         $migration = include __DIR__.'/../database/migrations/create_contacts_table.php';
         $migration->up();
+
+        // The addresses and connections integrations own their own morph tables;
+        // load them from the provider packages so the cross-package tests run.
+        $addresses = include dirname(__DIR__).'/vendor/roundly-consulting/addresses-for-laravel/database/migrations/create_addresses_table.php';
+        $addresses->up();
+
+        $connections = include dirname(__DIR__).'/vendor/roundly-consulting/connections-for-laravel/database/migrations/create_connections_table.php';
+        $connections->up();
 
         Schema::create('users', function (Blueprint $table): void {
             $table->id();
