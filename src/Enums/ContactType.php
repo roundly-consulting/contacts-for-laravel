@@ -6,9 +6,16 @@ namespace RoundlyConsulting\Contacts\Enums;
 
 use RoundlyConsulting\Contacts\Rules\ValidContactValue;
 use RoundlyConsulting\Contacts\Support\ContactValueNormalizer;
+use RoundlyConsulting\Enums\Helpers;
 
 enum ContactType: string
 {
+    // Adds values()/labels()/options()/toOptions()/names()/validationRule() plus
+    // is()/isNot()/isIn()/whenIs() and case lookups. The domain label() below is
+    // intentionally kept: a class-defined method shadows the trait's plain alias,
+    // so config/lang/icon-aware labelling still wins with no behaviour change.
+    use Helpers;
+
     case Email = 'email';
     case Phone = 'phone';
     case Address = 'address';
