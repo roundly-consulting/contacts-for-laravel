@@ -58,6 +58,9 @@ return [
     'types' => [
         // 'whatsapp' => ['label' => 'WhatsApp', 'icon' => 'chat', 'rules' => ['required', 'string']],
     ],
+    'relationship_kinds' => [
+        // 'works_at' => 'Works at', 'spouse_of' => 'Spouse of',
+    ],
 ];
 ```
 
@@ -73,6 +76,7 @@ return [
 | `verification.code_length` | `int` | `6` (`CONTACTS_VERIFICATION_CODE_LENGTH`) | Number of digits when style is `code`. |
 | `verification.token_length` | `int` | `32` (`CONTACTS_VERIFICATION_TOKEN_LENGTH`) | Bytes of randomness when style is `token` (hex-encoded, so the string is twice this). |
 | `types` | `array` | `[]` | Register custom kinds and override the label/icon/rules of built-in kinds. |
+| `relationship_kinds` | `array` | `[]` | Allow-list for the typed relationship helpers (`relateTo`/`relationsOfKind`). Empty = free-form; a list or `kind => label` map restricts kinds. |
 
 ## Contact kinds
 
@@ -324,6 +328,81 @@ collection cast, and direct `$user->contacts()->create([...])` all still work. N
 validation, and auto-primary apply only through the action / facade / trait-sugar path.
 
 Contacts use soft deletes, so a deleted contact stays retrievable via `withTrashed()`.
+
+## Integrates with
+
+This package hard-requires three lower-tier roundly packages (wired automatically), turning a
+flat contact list into a small CRM-grade address book + relationship graph. See
+[`docs/cross-package-integration-plan.md`](https://github.com/roundly-consulting) for the tier
+DAG (`contacts` sits at Tier 2).
+
+- **[addresses-for-laravel](https://github.com/roundly-consulting/addresses-for-laravel)** —
+  structured, validated postal addresses on a `Contact`.
+- **[connections-for-laravel](https://github.com/roundly-consulting/connections-for-laravel)** —
+  contact ↔ contact and owner ↔ contact affiliations.
+- **[enums-for-laravel](https://github.com/roundly-consulting/enums-for-laravel)** — select/label
+  helpers on `ContactType`.
+
+### Structured addresses (addresses)
+
+A `Contact` is `Addressable`, so it holds a billing/physical/mailing address book. The loose
+`value` string keeps working as a fallback.
+
+```php
+use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
+use RoundlyConsulting\Addresses\Enums\AddressType;
+
+$contact->addAddress(AddressData::make(
+    city: 'Bratislava', street: 'Hlavna 1', postalCode: '81101',
+    countryIso: 'SK', type: AddressType::Billing, isPrimary: true,
+));
+
+$contact->primaryAddress();                       // the primary Address
+$contact->addressesOfType(AddressType::Billing);  // typed lookup
+$contact->formattedAddress();                     // one-line render, falls back to value
+
+// Build an address-type contact and its structured Address in one call:
+Contacts::for($owner)
+    ->address('fallback')
+    ->structuredAddress([
+        'city' => 'Vienna', 'street' => 'Ring 3',
+        'postalCode' => '1010', 'countryIso' => 'AT',
+        'type' => AddressType::Billing,
+    ])
+    ->add();
+
+// Or from the owner directly:
+$owner->addStructuredAddress(AddressData::make(/* … */), label: 'Main');
+```
+
+### Affiliations & relationships (connections)
+
+A `Contact` is `Connectable`. Link contacts to each other and to owners, with a free-form,
+host-config-driven relationship "kind".
+
+```php
+$person->connectTo($company, ['employee']);       // raw connection
+$person->relateTo($company, 'works_at');           // typed kind, stored in meta
+$person->relationsOfKind('works_at');              // contacts related under a kind
+$person->inviteConnection($company);               // pending → accept/block
+$company->acceptConnectionFrom($person);
+
+Contacts::sharedWith($owner);                       // contacts connected to an owner
+```
+
+Restrict the allowed kinds with the `contacts.relationship_kinds` config (empty = free-form).
+
+### `ContactType` helpers (enums)
+
+`ContactType` adopts the enums `Helpers` trait on top of its domain methods (the config/lang-aware
+`label()` is preserved):
+
+```php
+ContactType::values();          // ['email', 'phone', …]
+ContactType::options();         // EnumOption DTOs for selects
+ContactType::validationRule();  // 'in:email,phone,address,url,social,custom'
+$type->isIn([ContactType::Email, ContactType::Phone]);
+```
 
 ## Testing
 
