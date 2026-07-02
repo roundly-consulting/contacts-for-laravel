@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Contacts;
 
 use Illuminate\Database\Eloquent\Model;
+use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
+use RoundlyConsulting\Contacts\Support\AddressDataFactory;
+use RoundlyConsulting\Contacts\Support\ContactAddressFormatter;
 
 final class PendingContact
 {
@@ -22,6 +25,8 @@ final class PendingContact
     private ?string $category = null;
 
     private bool $isPrimary = false;
+
+    private ?AddressData $structuredAddress = null;
 
     /** @var array<string, mixed> */
     private array $meta = [];
@@ -79,6 +84,26 @@ final class PendingContact
         return $this;
     }
 
+    /**
+     * Attach a validated, structured postal address to this address-type contact.
+     * On add() the Address is created and the contact's value becomes its
+     * one-line render. Accepts an AddressData or an attribute array.
+     *
+     * @param  AddressData|array<string, mixed>  $data
+     */
+    public function structuredAddress(AddressData|array $data): self
+    {
+        $this->structuredAddress = $data instanceof AddressData
+            ? $data
+            : AddressDataFactory::fromArray($data);
+
+        if ($this->type === ContactType::Custom) {
+            $this->type = ContactType::Address;
+        }
+
+        return $this;
+    }
+
     public function label(string $label): self
     {
         $this->label = $label;
@@ -119,14 +144,28 @@ final class PendingContact
 
     public function add(): Contact
     {
-        return $this->manager->add($this->owner, new ContactData(
+        // Ensure the base row passes value validation before the structured
+        // address (if any) overwrites value with its one-line render.
+        $value = $this->value;
+
+        if ($value === '' && $this->structuredAddress instanceof AddressData) {
+            $value = ContactAddressFormatter::fromData($this->structuredAddress);
+        }
+
+        $contact = $this->manager->add($this->owner, new ContactData(
             type: $this->type,
-            value: $this->value,
+            value: $value,
             label: $this->label,
             name: $this->name,
             category: $this->category,
             isPrimary: $this->isPrimary,
             meta: $this->meta,
         ));
+
+        if ($this->structuredAddress instanceof AddressData) {
+            ContactAddressFormatter::attach($contact, $this->structuredAddress);
+        }
+
+        return $contact;
     }
 }

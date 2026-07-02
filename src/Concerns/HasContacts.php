@@ -7,10 +7,12 @@ namespace RoundlyConsulting\Contacts\Concerns;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
 use RoundlyConsulting\Contacts\ContactsManager;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
+use RoundlyConsulting\Contacts\Support\ContactAddressFormatter;
 
 /**
  * @phpstan-require-extends Model
@@ -71,6 +73,25 @@ trait HasContacts
             label: $label,
             isPrimary: $primary,
         ));
+    }
+
+    /**
+     * Create an address-type contact backed by a validated, structured Address.
+     * The contact's value mirrors the address's one-line render, so existing
+     * readers keep working while the structured data lives on the Address.
+     */
+    public function addStructuredAddress(AddressData $data, ?string $label = null, bool $primary = false): Contact
+    {
+        $contact = $this->addContact(new ContactData(
+            type: ContactType::Address,
+            value: ContactAddressFormatter::fromData($data),
+            label: $label,
+            isPrimary: $primary,
+        ));
+
+        ContactAddressFormatter::attach($contact, $data);
+
+        return $contact;
     }
 
     /**
