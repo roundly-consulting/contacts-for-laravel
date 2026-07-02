@@ -112,4 +112,28 @@ return [
         //
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Relationship Kinds
+    |--------------------------------------------------------------------------
+    |
+    | The typed relationship helpers (relateTo / relationsOfKind) store a "kind"
+    | on each connection (works_at, spouse_of, reports_to, member_of, …). When
+    | this list is non-empty it acts as an allow-list — relating a contact under
+    | any other kind throws a RelationshipException. Leave it empty to keep kinds
+    | free-form. Accepts a plain list of kinds or a kind => label map.
+    |
+    | Example:
+    |   'relationship_kinds' => [
+    |       'works_at' => 'Works at',
+    |       'spouse_of' => 'Spouse of',
+    |       'reports_to' => 'Reports to',
+    |   ],
+    |
+    */
+
+    'relationship_kinds' => [
+        //
+    ],
+
 ];

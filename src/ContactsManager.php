@@ -8,6 +8,8 @@ use Carbon\CarbonInterface;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
+use RoundlyConsulting\Connections\Contracts\Connectable;
 use RoundlyConsulting\Contacts\Actions\AddContactAction;
 use RoundlyConsulting\Contacts\Actions\ConfirmContactVerificationAction;
 use RoundlyConsulting\Contacts\Actions\DeleteContactAction;
@@ -93,6 +95,21 @@ class ContactsManager
     public function vCard(Model $owner): string
     {
         return VCardExporter::forOwner($owner);
+    }
+
+    /**
+     * The contacts connected to a given Connectable owner, letting a single
+     * shared contact (e.g. a supplier) link to multiple owners without
+     * duplication. The owner must use the connections HasConnections trait.
+     *
+     * @return Collection<int, Model>
+     */
+    public function sharedWith(Connectable $owner): Collection
+    {
+        /** @var class-string<Contact> $model */
+        $model = config('contacts.model', Contact::class);
+
+        return $owner->connectablesOfType($model);
     }
 
     /**
