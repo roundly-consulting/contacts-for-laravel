@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
+use RoundlyConsulting\Contacts\Support\ContactModel;
 
 final class SyncContactsAction
 {
@@ -29,11 +30,8 @@ final class SyncContactsAction
      */
     public function execute(Model $owner, ContactType $type, array $items): EloquentCollection
     {
-        /** @var class-string<Contact> $model */
-        $model = config('contacts.model', Contact::class);
-
         /** @var EloquentCollection<int, Contact> $existing */
-        $existing = $owner->morphMany($model, 'owner')
+        $existing = $owner->morphMany(ContactModel::class(), 'owner')
             ->where('type', $type->value)
             ->get();
 

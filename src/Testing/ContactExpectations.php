@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
+use RoundlyConsulting\Contacts\Support\ContactModel;
 
 /**
  * Registers Pest expectation matchers for asserting an owner model's contacts.
@@ -98,8 +99,7 @@ final class ContactExpectations
      */
     public static function query(Model $owner): Builder
     {
-        /** @var class-string<Contact> $model */
-        $model = config('contacts.model', Contact::class);
+        $model = ContactModel::class();
 
         return $model::query()->forOwner($owner);
     }

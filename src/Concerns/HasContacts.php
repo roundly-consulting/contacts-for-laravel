@@ -13,6 +13,7 @@ use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Support\ContactAddressFormatter;
+use RoundlyConsulting\Contacts\Support\ContactModel;
 
 /**
  * @phpstan-require-extends Model
@@ -24,10 +25,7 @@ trait HasContacts
      */
     public function contacts(): MorphMany
     {
-        /** @var class-string<Contact> $model */
-        $model = config('contacts.model', Contact::class);
-
-        return $this->morphMany($model, 'owner');
+        return $this->morphMany(ContactModel::class(), 'owner');
     }
 
     public function addContact(ContactData $data): Contact

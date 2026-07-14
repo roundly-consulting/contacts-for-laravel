@@ -10,6 +10,7 @@ use RoundlyConsulting\Contacts\Events\ContactAdded;
 use RoundlyConsulting\Contacts\Exceptions\InvalidContactValue;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Rules\ValidContactValue;
+use RoundlyConsulting\Contacts\Support\ContactModel;
 
 final class AddContactAction
 {
@@ -25,8 +26,7 @@ final class AddContactAction
             throw InvalidContactValue::forType($data->type, $data->value);
         }
 
-        /** @var class-string<Contact> $model */
-        $model = config('contacts.model', Contact::class);
+        $model = ContactModel::class();
 
         $isFirstOfKind = ! $owner->morphMany($model, 'owner')
             ->where('type', $data->type->value)

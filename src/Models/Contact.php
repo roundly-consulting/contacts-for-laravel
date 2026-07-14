@@ -42,8 +42,10 @@ use SensitiveParameter;
  * @property CarbonInterface|null $updated_at
  * @property CarbonInterface|null $deleted_at
  * @property-read Model|null $owner
+ *
+ * Not final: `contacts.model` documents extending this model in a host app.
  */
-final class Contact extends Model implements Addressable, Connectable
+class Contact extends Model implements Addressable, Connectable
 {
     use HasAddresses;
     use HasConnections;

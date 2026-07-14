@@ -10,6 +10,7 @@ use RoundlyConsulting\Connections\Contracts\Connectable;
 use RoundlyConsulting\Connections\Models\Connection;
 use RoundlyConsulting\Contacts\Exceptions\RelationshipException;
 use RoundlyConsulting\Contacts\Models\Contact;
+use RoundlyConsulting\Contacts\Support\ContactModel;
 
 /**
  * Typed, CRM-flavoured sugar over the connections graph. Maps a free-form
@@ -46,8 +47,7 @@ trait HasContactRelations
      */
     public function relationsOfKind(string $kind): EloquentCollection
     {
-        /** @var class-string<Contact> $model */
-        $model = config('contacts.model', Contact::class);
+        $model = ContactModel::class();
 
         $type = (new $model)->getMorphClass();
 

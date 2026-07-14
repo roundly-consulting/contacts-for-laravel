@@ -21,6 +21,7 @@ use RoundlyConsulting\Contacts\Actions\VerifyContactAction;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
+use RoundlyConsulting\Contacts\Support\ContactModel;
 use RoundlyConsulting\Contacts\Support\ContactRules;
 use RoundlyConsulting\Contacts\Support\VCardExporter;
 use RoundlyConsulting\Contacts\Testing\FakeContactsManager;
@@ -106,10 +107,7 @@ class ContactsManager
      */
     public function sharedWith(Connectable $owner): Collection
     {
-        /** @var class-string<Contact> $model */
-        $model = config('contacts.model', Contact::class);
-
-        return $owner->connectablesOfType($model);
+        return $owner->connectablesOfType(ContactModel::class());
     }
 
     /**

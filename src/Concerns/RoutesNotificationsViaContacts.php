@@ -6,7 +6,7 @@ namespace RoundlyConsulting\Contacts\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Contacts\Enums\ContactType;
-use RoundlyConsulting\Contacts\Models\Contact;
+use RoundlyConsulting\Contacts\Support\ContactModel;
 
 /**
  * Opt-in notification routing that resolves channel destinations from an
@@ -44,8 +44,7 @@ trait RoutesNotificationsViaContacts
 
     private function primaryContactValueFor(ContactType $type): ?string
     {
-        /** @var class-string<Contact> $model */
-        $model = config('contacts.model', Contact::class);
+        $model = ContactModel::class();
 
         $contact = $model::query()
             ->forOwner($this)
