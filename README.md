@@ -331,7 +331,7 @@ Contacts use soft deletes, so a deleted contact stays retrievable via `withTrash
 
 ## Integrates with
 
-This package hard-requires three lower-tier roundly packages (wired automatically), turning a
+This package hard-requires four lower-tier roundly packages (wired automatically), turning a
 flat contact list into a small CRM-grade address book + relationship graph. See
 [`docs/cross-package-integration-plan.md`](https://github.com/roundly-consulting) for the tier
 DAG (`contacts` sits at Tier 2).
@@ -342,6 +342,16 @@ DAG (`contacts` sits at Tier 2).
   contact ↔ contact and owner ↔ contact affiliations.
 - **[enums-for-laravel](https://github.com/roundly-consulting/enums-for-laravel)** — select/label
   helpers on `ContactType`.
+- **[package-toolkit-for-laravel](https://github.com/roundly-consulting/package-toolkit-for-laravel)**
+  — the service-provider builder (config/migrations/translations/facade-alias wiring + the
+  `php artisan about` section) and the validated `contacts.model` resolver.
+
+The package reports its configuration to Laravel's `about` command — registered kinds and
+relationship allow-lists are reported as counts, never as their contents:
+
+```bash
+php artisan about --only=contacts
+```
 
 ### Structured addresses (addresses)
 
