@@ -35,6 +35,8 @@ abstract class TestCase extends Orchestra
             'prefix' => '',
         ]);
 
+        // Migrations are publish-only — no provider auto-loads them, so the suite
+        // runs every table it needs itself, in dependency order.
         $migration = include __DIR__.'/../database/migrations/create_contacts_table.php';
         $migration->up();
 

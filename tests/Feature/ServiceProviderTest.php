@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Foundation\AliasLoader;
 use Illuminate\Support\ServiceProvider;
 use RoundlyConsulting\Contacts\ContactsManager;
+use RoundlyConsulting\Contacts\ContactsServiceProvider;
 use RoundlyConsulting\Contacts\Facades\Contacts;
 
 it('registers all publish tags', function (string $tag): void {
@@ -16,6 +18,27 @@ it('registers all publish tags', function (string $tag): void {
     'contacts-migrations',
     'contacts-translations',
 ]);
+
+it('never auto-loads its migrations', function (): void {
+    /** @var Migrator $migrator */
+    $migrator = app('migrator');
+
+    expect($migrator->paths())
+        ->not->toContain(realpath(__DIR__.'/../../database/migrations'));
+});
+
+it('publishes the migration into the host under a timestamped name', function (): void {
+    $paths = ServiceProvider::pathsToPublish(ContactsServiceProvider::class, 'contacts-migrations');
+
+    expect($paths)->toHaveCount(1);
+
+    $source = (string) array_key_first($paths);
+    $destination = (string) reset($paths);
+
+    expect($source)->toEndWith('database/migrations/create_contacts_table.php')
+        ->and($destination)->toStartWith(database_path('migrations').DIRECTORY_SEPARATOR)
+        ->and(basename($destination))->toMatch('/^\d{4}_\d{2}_\d{2}_\d{6}_create_contacts_table\.php$/');
+});
 
 it('loads the package translations', function (): void {
     expect(__('contacts::errors.invalid_verification_token'))
