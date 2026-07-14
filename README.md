@@ -24,12 +24,16 @@ a fluent facade, and native vCard export. Zero non-Laravel runtime dependencies.
 composer require roundly-consulting/contacts-for-laravel
 ```
 
-Publish and run the migrations:
+The migration is **publish-only** — the package never runs it for you. Publish it into your app's
+`database/migrations`, then migrate:
 
 ```bash
 php artisan vendor:publish --tag="contacts-migrations"
 php artisan migrate
 ```
+
+Publishing is idempotent: it lands as a timestamped file you own and can edit, and re-publishing
+overwrites that same file instead of adding a second copy.
 
 Optionally publish the config file or translations:
 
