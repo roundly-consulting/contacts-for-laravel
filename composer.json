@@ -20,7 +20,8 @@
         "illuminate/contracts": "^12.0|^13.0",
         "roundly-consulting/addresses-for-laravel": "@dev",
         "roundly-consulting/connections-for-laravel": "@dev",
-        "roundly-consulting/enums-for-laravel": "@dev"
+        "roundly-consulting/enums-for-laravel": "@dev",
+        "roundly-consulting/package-toolkit-for-laravel": "@dev"
     },
     "repositories": [
         {
@@ -45,6 +46,13 @@
             }
         },
         {
+            "type": "path",
+            "url": "../package-toolkit-for-laravel*",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
             "type": "vcs",
             "url": "https://github.com/roundly-consulting/addresses-for-laravel",
             "no-api": true
@@ -57,6 +65,11 @@
         {
             "type": "vcs",
             "url": "https://github.com/roundly-consulting/enums-for-laravel",
+            "no-api": true
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/roundly-consulting/package-toolkit-for-laravel",
             "no-api": true
         }
     ],
