@@ -37,12 +37,42 @@ enum ContactType: string
     }
 
     /**
+     * The `contacts.types.<kind>` overrides for this kind, or an empty array.
+     *
+     * Reads the `contacts.types` registry as a whole and offsets into it in PHP,
+     * rather than interpolating the kind into the config key
+     * (`config('contacts.types.'.$this->value.'.label')`, as this enum used to do
+     * three times over).
+     *
+     * That is not a style preference. An interpolated key is unverifiable: the config
+     * contract cannot tell whether `contacts.types.<something>.label` is a key the
+     * package ships or one it invented, so it flags the read rather than checking it —
+     * and a package whose config keys can't be checked is exactly where dead config
+     * hides. `contacts.types` is a host-extensible registry that ships empty, so the
+     * only key here the contract can meaningfully pin is the section itself. Now it can.
+     *
+     * @return array<string, mixed>
+     */
+    private function overrides(): array
+    {
+        $types = config('contacts.types');
+
+        if (! is_array($types)) {
+            return [];
+        }
+
+        $configured = $types[$this->value] ?? null;
+
+        return is_array($configured) ? $configured : [];
+    }
+
+    /**
      * Human label, translatable via contacts::types.* with an English fallback,
-     * overridable per custom kind through config.
+     * overridable per kind through config.
      */
     public function label(): string
     {
-        $configured = config('contacts.types.'.$this->value.'.label');
+        $configured = $this->overrides()['label'] ?? null;
 
         if (is_string($configured) && $configured !== '') {
             return $configured;
@@ -59,11 +89,11 @@ enum ContactType: string
     }
 
     /**
-     * Icon name string, overridable via config('contacts.types.<key>.icon').
+     * Icon name string, overridable through the `contacts.types` registry.
      */
     public function icon(): string
     {
-        $configured = config('contacts.types.'.$this->value.'.icon');
+        $configured = $this->overrides()['icon'] ?? null;
 
         if (is_string($configured) && $configured !== '') {
             return $configured;
@@ -81,13 +111,13 @@ enum ContactType: string
 
     /**
      * Illuminate validation rule strings for this kind. Custom/Social/Address
-     * rules can be overridden through config('contacts.types.<key>.rules').
+     * rules can be overridden through the `contacts.types` registry.
      *
      * @return list<string>
      */
     public function validationRules(): array
     {
-        $configured = config('contacts.types.'.$this->value.'.rules');
+        $configured = $this->overrides()['rules'] ?? null;
 
         if (is_array($configured) && $configured !== []) {
             /** @var list<string> $rules */
