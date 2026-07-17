@@ -6,11 +6,14 @@ namespace RoundlyConsulting\Contacts;
 
 use RoundlyConsulting\Contacts\Facades\Contacts;
 use RoundlyConsulting\Contacts\Support\ContactModel;
+use RoundlyConsulting\PackageToolkit\Concerns\RegistersBlueprintMacros;
 use RoundlyConsulting\PackageToolkit\Package;
 use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
 
 final class ContactsServiceProvider extends PackageServiceProvider
 {
+    use RegistersBlueprintMacros;
+
     public function configurePackage(Package $package): void
     {
         $package
@@ -40,6 +43,16 @@ final class ContactsServiceProvider extends PackageServiceProvider
         parent::register();
 
         $this->app->singleton(ContactsManager::class);
+    }
+
+    public function boot(): void
+    {
+        parent::boot();
+
+        // `Contact::search()` compiles through the toolkit's `whereLikeEscaped` macro,
+        // so it must exist before any host query runs. Registration is idempotent —
+        // the toolkit guards it with `hasMacro()`.
+        $this->registerBlueprintMacros();
     }
 
     private static function countryCode(): string

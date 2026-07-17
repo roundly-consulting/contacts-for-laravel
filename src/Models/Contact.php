@@ -168,12 +168,10 @@ class Contact extends Model implements Addressable, Connectable
             return $query;
         }
 
-        $like = '%'.$term.'%';
-
-        return $query->where(function (Builder $query) use ($like): void {
-            $query->where('name', 'like', $like)
-                ->orWhere('value', 'like', $like)
-                ->orWhere('label', 'like', $like);
+        return $query->where(function (Builder $query) use ($term): void {
+            $query->whereLikeEscaped('name', $term)
+                ->whereLikeEscaped('value', $term, 'or')
+                ->whereLikeEscaped('label', $term, 'or');
         });
     }
 
