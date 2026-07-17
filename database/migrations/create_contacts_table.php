@@ -26,7 +26,7 @@ return new class extends Migration
             $table->timestamp('verified_at')->nullable();
             $table->string('verification_token')->nullable();
             $table->timestamp('verification_expires_at')->nullable();
-            $table->json('meta')->nullable();
+            $table->jsonb('meta')->nullable();
             $table->timestamps();
             $table->softDeletes();
 
