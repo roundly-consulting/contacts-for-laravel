@@ -22,24 +22,27 @@ final class AddContactAction
     {
         $data = $data->normalized();
 
-        if (! ValidContactValue::passes($data->type, $data->value)) {
-            throw InvalidContactValue::forType($data->type, $data->value);
+        if (! ValidContactValue::passes($data->type, $data->value, $data->kind)) {
+            throw InvalidContactValue::forType($data->type, $data->value, $data->kind);
         }
 
         $model = ContactModel::class();
 
+        // Scoped by the RAW kind, so "first of kind" and the primary-per-kind guarantee
+        // treat a registered custom kind (e.g. whatsapp) as its own kind rather than
+        // lumping every custom contact together under `custom`.
         $isFirstOfKind = ! $owner->morphMany($model, 'owner')
-            ->where('type', $data->type->value)
+            ->where('type', $data->kind)
             ->exists();
 
         $shouldBePrimary = $data->isPrimary
             || ($isFirstOfKind && (bool) config('contacts.auto_primary', true));
 
-        $position = $data->position ?? $this->nextPosition($owner, $model, $data->type->value);
+        $position = $data->position ?? $this->nextPosition($owner, $model, $data->kind);
 
         /** @var Contact $contact */
         $contact = $owner->morphMany($model, 'owner')->create([
-            'type' => $data->type,
+            'type' => $data->kind,
             'name' => $data->name ?? '',
             'value' => $data->value,
             'label' => $data->label,

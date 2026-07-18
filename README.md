@@ -94,8 +94,44 @@ normalization, a translatable label, and an icon name:
 - **Url** — `https://` prepended when no scheme is present, validated with the `url` rule.
 - **Address / Social / Custom** — trimmed; `required|string` by default.
 
-Any stored type outside the six built-ins (e.g. a `whatsapp` kind registered in config) is
-treated as `Custom` and takes its label/icon/rules from `config('contacts.types.<key>')`.
+### Custom kinds
+
+Any stored kind outside the six built-ins (e.g. a `whatsapp` kind registered in config) types
+as `Custom` and takes its label/icon/rules from `config('contacts.types.<kind>')`:
+
+```php
+// config/contacts.php
+'types' => [
+    'whatsapp' => [
+        'label' => 'WhatsApp',
+        'icon' => 'chat-bubble',
+        'rules' => ['required', 'string', 'regex:/^\+?[1-9]\d{6,14}$/'],
+    ],
+],
+```
+
+```php
+$contact = $user->addContact(ContactData::fromArray([
+    'type' => 'whatsapp',
+    'value' => '+421900123456',
+    'name' => 'Support',
+]));
+
+$contact->kind;         // 'whatsapp'  — the raw kind, as stored
+$contact->type;         // ContactType::Custom
+$contact->kindLabel();  // 'WhatsApp'
+$contact->kindIcon();   // 'chat-bubble'
+```
+
+The raw kind is kept alongside the type, so the registered label, icon and validation rules all
+resolve — the regex above rejects a bad value on `addContact()`. `$contact->kind` is what the
+registry is keyed by; `$contact->type` stays a `ContactType` for typing and is `Custom` for any
+kind outside the six. Registered kinds are independent: each keeps its own primary contact, and
+`Contact::query()->ofType('whatsapp')` scopes to that kind alone.
+
+Note `kindLabel()` is the **kind's** display name, distinct from `$contact->label` — the host's
+free-text label for one particular contact (e.g. "Work"). An unregistered kind is preserved but
+falls back to Custom's label ("Other") and icon (`identification`).
 
 ## Usage
 

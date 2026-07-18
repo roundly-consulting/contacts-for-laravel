@@ -96,8 +96,11 @@ return [
     |--------------------------------------------------------------------------
     |
     | Register custom kinds and override the label, icon, or validation rules
-    | of the built-in kinds (email, phone, address, url, social, custom). Any
-    | stored type outside the six built-ins is treated as the Custom kind.
+    | of the built-in kinds (email, phone, address, url, social, custom).
+    |
+    | A kind outside the six built-ins types as Custom ($contact->type), while
+    | the raw kind is kept on $contact->kind — that is what this registry is
+    | keyed by, so it drives the label, icon and rules below.
     |
     | Example:
     |   'whatsapp' => [
@@ -105,6 +108,9 @@ return [
     |       'icon' => 'chat-bubble',
     |       'rules' => ['required', 'string', 'regex:/^\+?[1-9]\d{6,14}$/'],
     |   ],
+    |
+    | With the above, a contact added as 'whatsapp' reports kindLabel()
+    | "WhatsApp", kindIcon() "chat-bubble", and is validated against the regex.
     |
     */
 

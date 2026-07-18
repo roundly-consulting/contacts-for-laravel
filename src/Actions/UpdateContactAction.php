@@ -20,12 +20,12 @@ final class UpdateContactAction
     {
         $data = $data->normalized();
 
-        if (! ValidContactValue::passes($data->type, $data->value)) {
-            throw InvalidContactValue::forType($data->type, $data->value);
+        if (! ValidContactValue::passes($data->type, $data->value, $data->kind)) {
+            throw InvalidContactValue::forType($data->type, $data->value, $data->kind);
         }
 
         $contact->fill([
-            'type' => $data->type,
+            'type' => $data->kind,
             'value' => $data->value,
             'label' => $data->label,
             'category' => $data->category,

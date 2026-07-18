@@ -37,7 +37,10 @@ final class SetPrimaryContactAction
     private function demoteSiblings(Contact $contact): ?Contact
     {
         $query = Contact::query()
-            ->where('type', $contact->type->value)
+            // The RAW kind, not $contact->type->value: every registered custom kind types
+            // as Custom, so demoting on the enum would let a new `whatsapp` primary demote
+            // an unrelated `telegram` primary.
+            ->where('type', $contact->kind)
             ->where('is_primary', true)
             ->whereKeyNot($contact->getKey());
 

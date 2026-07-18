@@ -6,6 +6,7 @@ namespace RoundlyConsulting\Contacts\Models;
 
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -20,6 +21,7 @@ use RoundlyConsulting\Contacts\Actions\RequestContactVerificationAction;
 use RoundlyConsulting\Contacts\Concerns\HasContactRelations;
 use RoundlyConsulting\Contacts\Database\Factories\ContactFactory;
 use RoundlyConsulting\Contacts\Enums\ContactType;
+use RoundlyConsulting\Contacts\Support\ContactKind;
 use RoundlyConsulting\Contacts\Support\VCardExporter;
 use SensitiveParameter;
 
@@ -41,6 +43,7 @@ use SensitiveParameter;
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  * @property CarbonInterface|null $deleted_at
+ * @property-read string $kind
  * @property-read Model|null $owner
  *
  * Not final: `contacts.model` documents extending this model in a host app.
@@ -198,6 +201,78 @@ class Contact extends Model implements Addressable, Connectable
     }
 
     /**
+     * `type` reads as a ContactType but is STORED as the raw kind.
+     *
+     * Neither of the obvious mechanisms can express that:
+     *
+     * - The **native enum cast** calls `ContactType::from()` and raises a ValueError for
+     *   any host-registered custom kind (`"whatsapp" is not a valid backing value`), so a
+     *   row the registry is designed to support cannot even be read back.
+     * - A **CastsAttributes class** loses the kind on write. Laravel caches whatever `get()`
+     *   returns in `classCastCache` and `mergeAttributesFromClassCasts()` feeds it back
+     *   through `set()` on every save. Since `get()` must return a ContactType, and
+     *   `whatsapp` types as Custom, that round-trip rewrites the column to `custom`. Merely
+     *   READING `$contact->type` before saving was enough to destroy the kind — silently.
+     *
+     * An accessor with object caching off has no such round-trip: the enum is computed per
+     * read and the stored attribute is never written back from it. `withoutObjectCaching()`
+     * is load-bearing — Attribute caches object returns by default, which reintroduces the
+     * exact bug above.
+     *
+     * @return Attribute<ContactType, string>
+     */
+    protected function type(): Attribute
+    {
+        return Attribute::make(
+            get: static fn (mixed $value): ContactType => ContactType::fromValueOrCustom(
+                is_string($value) ? $value : null,
+            ),
+            set: static fn (ContactType|string|null $value): string => match (true) {
+                $value instanceof ContactType => $value->value,
+                is_string($value) && $value !== '' => $value,
+                default => ContactType::Custom->value,
+            },
+        )->withoutObjectCaching();
+    }
+
+    /**
+     * The raw kind this contact is stored under — a built-in ContactType value, or a custom
+     * kind registered in `config('contacts.types')` (e.g. `whatsapp`).
+     *
+     * `$contact->type` collapses anything outside the six built-ins to Custom; this is the
+     * string the registry is actually keyed by, so it is what resolves the label, icon and
+     * validation rules a host registered.
+     *
+     * @return Attribute<non-empty-string, never>
+     */
+    protected function kind(): Attribute
+    {
+        return Attribute::get(function (): string {
+            $raw = $this->attributes['type'] ?? null;
+
+            return is_string($raw) && $raw !== '' ? $raw : ContactType::Custom->value;
+        })->withoutObjectCaching();
+    }
+
+    /**
+     * Human label for this contact's kind — the registered one for a custom kind, the
+     * type's own otherwise. Distinct from `$contact->label`, the host's free-text label for
+     * this particular contact (e.g. "Work").
+     */
+    public function kindLabel(): string
+    {
+        return ContactKind::label($this->type, $this->kind);
+    }
+
+    /**
+     * Icon name for this contact's kind.
+     */
+    public function kindIcon(): string
+    {
+        return ContactKind::icon($this->type, $this->kind);
+    }
+
+    /**
      * A single-line render of this contact's primary structured address, falling
      * back to the loose `value` when no structured address is attached. Keeps
      * pre-integration rows (loose value, no Address) rendering correctly.
@@ -271,7 +346,8 @@ class Contact extends Model implements Addressable, Connectable
     protected function casts(): array
     {
         return [
-            'type' => ContactType::class,
+            // `type` is deliberately absent — see the type() accessor for why neither the
+            // native enum cast nor a CastsAttributes class can express it.
             'is_primary' => 'boolean',
             'position' => 'integer',
             'verified_at' => 'datetime',
