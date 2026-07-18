@@ -20,6 +20,7 @@
         "illuminate/contracts": "^12.0|^13.0",
         "roundly-consulting/addresses-for-laravel": "@dev",
         "roundly-consulting/connections-for-laravel": "@dev",
+        "roundly-consulting/crypto-for-laravel": "@dev",
         "roundly-consulting/enums-for-laravel": "@dev",
         "roundly-consulting/package-toolkit-for-laravel": "@dev"
     },
@@ -34,6 +35,13 @@
         {
             "type": "path",
             "url": "../connections-for-laravel*",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
+            "type": "path",
+            "url": "../crypto-for-laravel*",
             "options": {
                 "symlink": true
             }
@@ -60,6 +68,11 @@
         {
             "type": "vcs",
             "url": "https://github.com/roundly-consulting/connections-for-laravel",
+            "no-api": true
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/roundly-consulting/crypto-for-laravel",
             "no-api": true
         },
         {
