@@ -8,6 +8,9 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use RoundlyConsulting\Contacts\Events\ContactVerificationRequested;
 use RoundlyConsulting\Contacts\Models\Contact;
+use RoundlyConsulting\Crypto\Codec\Hex;
+use RoundlyConsulting\Crypto\Random\Bytes;
+use RoundlyConsulting\Crypto\Random\Token;
 
 /**
  * Generate a verification token for a contact, store only its hash plus an
@@ -31,6 +34,16 @@ final class RequestContactVerificationAction
         return $plain;
     }
 
+    /**
+     * The CSPRNG draw and the hex encoding live in crypto-for-laravel; this only owns the
+     * choice of style and length.
+     *
+     * `Token::numeric()` draws each digit uniformly rather than one integer in
+     * [0, 10^n - 1]. That is the same distribution over the same n-digit space — including
+     * the leading-zero codes the old `str_pad` preserved — and it removes an integer
+     * overflow: `10 ** $length` exceeds PHP_INT_MAX at length 19, becoming a float that
+     * `random_int()` rejects with a TypeError.
+     */
     private function generateToken(): string
     {
         $style = config('contacts.verification.style', 'code');
@@ -38,14 +51,11 @@ final class RequestContactVerificationAction
         if ($style === 'token') {
             $bytes = (int) config('contacts.verification.token_length', 32);
 
-            return bin2hex(random_bytes(max(1, $bytes)));
+            return Hex::encode(Bytes::generate(max(1, $bytes)));
         }
 
         $length = (int) config('contacts.verification.code_length', 6);
-        $length = max(1, $length);
 
-        $max = (10 ** $length) - 1;
-
-        return str_pad((string) random_int(0, $max), $length, '0', STR_PAD_LEFT);
+        return Token::numeric(max(1, $length));
     }
 }
