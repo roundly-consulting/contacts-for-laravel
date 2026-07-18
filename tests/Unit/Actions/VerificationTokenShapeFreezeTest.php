@@ -196,6 +196,27 @@ it('freezes the hex distribution against the pre-refactor generator', function (
     expect($chi)->toBeLessThan(60.0);
 });
 
+/**
+ * Regression: `code_length` of 19 or more used to be a fatal.
+ *
+ * The old generator computed `(10 ** $length) - 1` as `random_int()`'s upper bound. At
+ * length 19 that exceeds PHP_INT_MAX (9223372036854775807), so `10 ** 19` evaluates to the
+ * float 1.0E+19 and `random_int()` rejects it with a TypeError — an uncaught fatal on a
+ * host-supplied, env-backed config value (CONTACTS_VERIFICATION_CODE_LENGTH). Nothing
+ * validated the ceiling and no test swept past 6.
+ *
+ * Drawing each digit uniformly has no such bound, so the length is now simply honoured.
+ */
+it('mints a long numeric code instead of fatally overflowing its own bound', function (int $length): void {
+    config()->set('contacts.verification.style', 'code');
+    config()->set('contacts.verification.code_length', $length);
+
+    $token = drawTokens(1)[0];
+
+    expect(strlen($token))->toBe($length)
+        ->and($token)->toMatch('/^[0-9]+$/');
+})->with([19, 25, 40]);
+
 it('freezes the hex alphabet: lowercase only, all 16 symbols reachable', function (): void {
     config()->set('contacts.verification.style', 'token');
     config()->set('contacts.verification.token_length', 32);
