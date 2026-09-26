@@ -80,5 +80,5 @@ it('exports a vcard through the facade', function (): void {
 
     expect($vcard)->toContain('BEGIN:VCARD')
         ->toContain('FN:Jane Doe')
-        ->toContain('EMAIL;TYPE=Work:jane@example.com');
+        ->toContain('EMAIL;TYPE=work:jane@example.com');
 });

@@ -321,6 +321,21 @@ Contacts::vCard($user);   // a vCard 3.0 string for the owner's contacts
 $contact->toVCard();      // a single contact
 ```
 
+The card is valid vCard 3.0 (RFC 2426):
+
+- **`N` and `FN`** are always present. `N` is built from the owner's structured name attributes
+  when it has them — `last_name`/`family_name`/`surname`, `first_name`/`given_name`,
+  `middle_name`/`additional_name`, `name_prefix`/`honorific_prefix`,
+  `name_suffix`/`honorific_suffix`. Otherwise the display name fills `N`'s family-name slot
+  (`N:Jane Doe;;;;`). `FN` is the owner's `name`, else the structured parts, else `Contact`.
+  Only attributes the model actually has are read, so `Model::shouldBeStrict()` is safe.
+- **Labels:** a label naming a registered type for its property (`work`, `home`, `cell`, `fax`,
+  `pager`, …; `mobile` becomes `cell`) is emitted as `TYPE=work`. Any other label
+  (`Office, main`) is kept as `item1.X-ABLabel:Office\, main` on a grouped property — the
+  custom-label form Apple and Google contacts read — rather than as an invalid `TYPE`.
+- Text is escaped (`\`, `,`, `;`, and any CRLF/CR/LF as `\n`), URLs are left unescaped, and long
+  lines fold at 75 octets without splitting a UTF-8 character.
+
 ### Testing helper
 
 ```php
