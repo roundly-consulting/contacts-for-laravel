@@ -386,20 +386,18 @@ expect($company)
     ->toHaveVerifiedContact('hello@acme.test');
 ```
 
-### Backward compatibility
+### Low-level access
 
-The existing low-level API is unchanged: `contacts()`, the original scopes, the `meta`
-collection cast, and direct `$user->contacts()->create([...])` all still work. Normalization,
-validation, and auto-primary apply only through the action / facade / trait-sugar path.
+The relation stays available for direct use: `contacts()`, its query scopes, the `meta`
+collection cast, and `$user->contacts()->create([...])`. Normalization, validation, and
+auto-primary apply only through the action / facade / trait-sugar path.
 
 Contacts use soft deletes, so a deleted contact stays retrievable via `withTrashed()`.
 
 ## Integrates with
 
-This package hard-requires four lower-tier roundly packages (wired automatically), turning a
-flat contact list into a small CRM-grade address book + relationship graph. See
-[`docs/cross-package-integration-plan.md`](https://github.com/roundly-consulting) for the tier
-DAG (`contacts` sits at Tier 2).
+This package hard-requires four roundly packages (wired automatically), turning a flat contact
+list into a small CRM-grade address book + relationship graph.
 
 - **[addresses-for-laravel](https://github.com/roundly-consulting/addresses-for-laravel)** —
   structured, validated postal addresses on a `Contact`.
