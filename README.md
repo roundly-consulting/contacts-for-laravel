@@ -146,7 +146,75 @@ falls back to Custom's label ("Other") and icon (`identification`).
 
 ## Usage
 
-### Trait sugar (the common case)
+### The `Contacts` facade
+
+`Contacts::for($owner)` returns the owner's **contact book**; `Contacts::verification()` runs the
+token / code flow; single-contact operations are flat.
+
+```php
+use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
+use RoundlyConsulting\Contacts\Enums\ContactType;
+use RoundlyConsulting\Contacts\Facades\Contacts;
+
+// Add — normalized + validated, primary guaranteed unique per kind.
+Contacts::for($user)->email('a@b.com')->label('Work')->primary()->add();
+Contacts::for($user)->phone('+421 900 000 000')->label('Mobile')->add();
+Contacts::for($user)->type('whatsapp')->value('+421900123456')->add();   // a registered custom kind
+Contacts::for($user)->add(new ContactData(ContactType::Url, 'example.com'));
+
+// Read and export.
+Contacts::for($user)->all();                        // ordered by position
+Contacts::for($user)->ofType(ContactType::Email);
+Contacts::for($user)->primary(ContactType::Email);  // ?Contact
+Contacts::for($user)->vCard();                      // vCard 3.0 string
+
+// One contact.
+Contacts::update($contact, new ContactData(ContactType::Email, 'new@b.com'));
+Contacts::setPrimary($contact);
+Contacts::delete($contact);
+```
+
+| Method | Does |
+|---|---|
+| `for($owner)` | the owner's `ContactBook` (below) |
+| `verification()` | the `ContactVerification` accessor: `request()`, `confirm()`, `markVerified()` |
+| `update($contact, ContactData)` | overwrite a contact; a primary flag promotes it |
+| `setPrimary($contact)` | promote a contact, demoting its owner's other primary of the same kind |
+| `delete($contact)` | soft-delete a contact |
+| `sharedWith(Connectable $owner)` | contacts connected to an owner (see connections below) |
+| `validationRules(string $key = 'contacts')` | `contacts.*` rules for a repeatable form |
+| `fake()` | swap in `ContactsFake` (see Testing helper) |
+
+`ContactBook` (`Contacts::for($owner)`): `email()`, `phone()`, `url()`, `address()`,
+`structuredAddress()`, `type()` start a fluent `PendingContact` (then `label()`, `name()`,
+`category()`, `value()`, `primary()`, `meta()`, and `add()`); `add(ContactData)`,
+`sync(ContactType, list<ContactData>)`, `all()`, `ofType()`, `primary()` and `vCard()`.
+
+### Without the facade
+
+The facade is sugar over `ContactsManager` — inject it for the same API, or call an action
+directly:
+
+```php
+use RoundlyConsulting\Contacts\Actions\AddContactAction;
+use RoundlyConsulting\Contacts\ContactsManager;
+use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
+use RoundlyConsulting\Contacts\Enums\ContactType;
+
+public function __construct(private ContactsManager $contacts) {}
+
+$this->contacts->for($user)->email('a@b.com')->primary()->add();
+$this->contacts->verification()->request($contact);
+
+// The raw action
+app(AddContactAction::class)->execute($user, new ContactData(ContactType::Email, 'a@b.com'));
+```
+
+The actions are `AddContactAction`, `UpdateContactAction`, `DeleteContactAction`,
+`SetPrimaryContactAction`, `SyncContactsAction`, `RequestContactVerificationAction`,
+`ConfirmContactVerificationAction` and `VerifyContactAction`.
+
+### Trait sugar
 
 Add the `HasContacts` trait to any model:
 
@@ -161,7 +229,6 @@ class User extends Model
 ```
 
 ```php
-// Add — normalized + validated, primary guaranteed unique per kind.
 $user->addEmail('A.Person@Example.COM ', label: 'Work', primary: true);
 $user->addPhone('+421 900 000 000', label: 'Mobile');
 $user->addUrl('example.com');
@@ -170,26 +237,10 @@ $user->addAddress('12 Main St');
 $user->primaryEmail()?->value;          // 'a.person@example.com'
 $user->primaryPhone()?->value;          // '+421900000000'
 $user->contactsOfType('phone');         // ordered EloquentCollection
+$user->contactBook();                   // same as Contacts::for($user)
 ```
 
-### The `Contacts` facade and fluent builder
-
-```php
-use RoundlyConsulting\Contacts\Facades\Contacts;
-use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
-use RoundlyConsulting\Contacts\Enums\ContactType;
-
-Contacts::for($user)
-    ->phone('+421 900 000 000')
-    ->label('Mobile')
-    ->primary()
-    ->add();
-
-Contacts::add($user, new ContactData(ContactType::Email, 'a@b.com'));
-Contacts::setPrimary($contact);
-Contacts::verify($contact);
-Contacts::delete($contact);
-```
+Every trait method goes through the manager, so `Contacts::fake()` records it.
 
 ### Verifying a contact (token / code flow)
 
@@ -201,11 +252,14 @@ fires an event with the plaintext so your app delivers it over its own channel (
 use RoundlyConsulting\Contacts\Facades\Contacts;
 
 // Generate a token and dispatch ContactVerificationRequested($contact, $plainToken).
-$token = Contacts::requestVerification($contact);   // or $contact->requestVerification()
+$token = Contacts::verification()->request($contact);   // or $contact->requestVerification()
 
 // Later, confirm with the token the user supplied.
-Contacts::confirmVerification($contact, $token);     // or $contact->confirmVerification($token)
+Contacts::verification()->confirm($contact, $token);     // or $contact->confirmVerification($token)
 // On success: verified_at is set, token fields cleared, ContactVerified fires.
+
+// Verified out of band (no token): set verified_at and fire ContactVerified.
+Contacts::verification()->markVerified($contact);         // optional ?CarbonInterface $at
 ```
 
 Deliver the token from a listener:
@@ -226,7 +280,7 @@ Confirmation throws `InvalidVerificationToken` (wrong/absent token) or `Verifica
 ### Syncing a set of contacts (e.g. a profile form)
 
 ```php
-Contacts::sync($user, ContactType::Phone, [
+Contacts::for($user)->sync(ContactType::Phone, [
     new ContactData(ContactType::Phone, '+421900000000', label: 'Mobile', isPrimary: true),
     new ContactData(ContactType::Phone, '+421900111222', label: 'Office'),
 ]);
@@ -328,8 +382,8 @@ for the mail, Vonage, and Twilio channels.
 ### vCard export
 
 ```php
-Contacts::vCard($user);   // a vCard 3.0 string for the owner's contacts
-$contact->toVCard();      // a single contact
+Contacts::for($user)->vCard();   // a vCard 3.0 string for the owner's contacts
+$contact->toVCard();             // a single contact
 ```
 
 The card is valid vCard 3.0 (RFC 2426):
@@ -349,17 +403,35 @@ The card is valid vCard 3.0 (RFC 2426):
 
 ### Testing helper
 
+`Contacts::fake()` swaps the manager for `ContactsFake` — injected managers get it too. Nothing
+is written and no event fires: added contacts come back unsaved (a structured address is rendered
+into the value, never stored). Every write is recorded — through the facade, an injected manager,
+a contact book, `verification()`, the `HasContacts` trait or `$contact->requestVerification()` /
+`confirmVerification()`. Reads still hit the database.
+
 ```php
 use RoundlyConsulting\Contacts\Facades\Contacts;
 
 $fake = Contacts::fake();
 
 $user->addEmail('a@b.com');
+$contact->requestVerification();
 
-$fake->assertAdded(fn ($data) => $data->value === 'a@b.com');
-$fake->assertVerified();
-$fake->assertPrimarySet();
+$fake->assertAdded(fn (ContactData $data, Model $owner) => $data->value === 'a@b.com');
+$fake->assertVerificationRequested($contact);
+$fake->assertNothingDeleted();
 ```
+
+| Records | Assert | Assert none |
+|---|---|---|
+| `for()->…->add()`, `for()->add()`, trait `add*()` | `assertAdded(?Closure(ContactData, Model))` | `assertNothingAdded()` |
+| `for()->sync()` | `assertSynced(?ContactType, ?Closure(list<ContactData>, Model))` | `assertNothingSynced()` |
+| `update()` | `assertUpdated(?Contact, ?Closure(ContactData))` | `assertNothingUpdated()` |
+| `delete()` | `assertDeleted(?Contact)` | `assertNothingDeleted()` |
+| `setPrimary()` | `assertPrimarySet(?Contact)` | `assertNothingPrimarySet()` |
+| `verification()->markVerified()` | `assertVerified(?Contact)` | `assertNothingVerified()` |
+| `verification()->request()`, `$contact->requestVerification()` | `assertVerificationRequested(?Contact)` | `assertNoVerificationRequested()` |
+| `verification()->confirm()`, `$contact->confirmVerification()` | `assertVerificationConfirmed(?Contact)` | `assertNoVerificationConfirmed()` |
 
 Model factories ship states for ergonomic test setup: `email()`, `phone()`, `url()`,
 `address()`, `primary()`, `verified()`, `pendingVerification()`, `forOwner($model)`, and
@@ -437,7 +509,6 @@ $contact->formattedAddress();                     // one-line render, falls back
 
 // Build an address-type contact and its structured Address in one call:
 Contacts::for($owner)
-    ->address('fallback')
     ->structuredAddress([
         'city' => 'Vienna', 'street' => 'Ring 3',
         'postalCode' => '1010', 'countryIso' => 'AT',
@@ -448,6 +519,9 @@ Contacts::for($owner)
 // Or from the owner directly:
 $owner->addStructuredAddress(AddressData::make(/* … */), label: 'Main');
 ```
+
+The contact's `value` mirrors the address's one-line render. A structured address is only
+accepted on an address contact — anything else throws `InvalidContactValue`.
 
 ### Affiliations & relationships (connections)
 

@@ -16,18 +16,30 @@ Initial public release.
   custom kinds registered in config, each with its own label, icon and validation rules.
 - Automatic normalization and validation of every value, one primary contact per kind, and
   ordering by position.
-- A fluent `Contacts` facade — `Contacts::for($user)->phone(...)->primary()->add()` — and
-  `Contacts::sync()` to reconcile a whole set of contacts from a form.
-- Verification by token or numeric code: `requestVerification()` / `confirmVerification()`, with
-  only a hash stored and delivery left to your own mail or SMS listener.
+- A `Contacts` facade over an injectable `ContactsManager`. `Contacts::for($owner)` returns the
+  owner's contact book: fluent adds (`->email(...)->primary()->add()`, `->phone()`, `->url()`,
+  `->address()`, `->structuredAddress()`, `->type()`), `add(ContactData)`, `sync()` to reconcile a
+  whole set of contacts from a form, and `all()`, `ofType()`, `primary()`, `vCard()` reads. Flat
+  `update()`, `setPrimary()`, `delete()`, `sharedWith()` and `validationRules()`.
+- Verification by token or numeric code through `Contacts::verification()->request()` /
+  `->confirm()` (or `$contact->requestVerification()` / `confirmVerification()`), plus
+  `->markVerified()` for out-of-band checks. Only a hash is stored; delivery is left to your own
+  mail or SMS listener.
 - Reusable validation: the `ValidContactValue` rule, `ContactType::rules()` and
   `Contacts::validationRules()` for repeatable contact lists.
 - Query scopes (`forOwner()`, `ofType()`, `primary()`, `verified()`, `search()`, `ordered()`, …)
   and events for every write (`ContactAdded`, `ContactVerified`, `PrimaryContactChanged`, …).
 - The opt-in `RoutesNotificationsViaContacts` trait routes mail, Vonage and Twilio notifications to
   the owner's primary contacts.
-- vCard 3.0 export for an owner (`Contacts::vCard($user)`) or a single contact (`toVCard()`).
+- vCard 3.0 export for an owner (`Contacts::for($user)->vCard()`) or a single contact (`toVCard()`).
 - Structured postal addresses and contact-to-contact relationships through the addresses and
   connections companion packages (`addStructuredAddress()`, `relateTo()`, `Contacts::sharedWith()`).
-- `Contacts::fake()`, model factory states and Pest expectations such as `toHavePrimaryEmail()` for
-  your tests.
+- `Contacts::fake()` (`ContactsFake`, a `ContactsManager` subtype, so injected managers get it too)
+  records every write — including the `HasContacts` trait and `Contact` verification methods —
+  and writes nothing, not even a structured address. Asserts: `assertAdded`, `assertSynced`,
+  `assertUpdated`, `assertDeleted`, `assertPrimarySet`, `assertVerified`,
+  `assertVerificationRequested`, `assertVerificationConfirmed`, each with an `assertNothing*` /
+  `assertNo*` counterpart. Model factory states and Pest expectations such as
+  `toHavePrimaryEmail()` round out the test kit.
+- `ContactData` carries an optional structured `address`; `$user->contactBook()` returns the same
+  book as `Contacts::for($user)`.
