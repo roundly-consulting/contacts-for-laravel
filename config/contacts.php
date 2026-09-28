@@ -75,8 +75,11 @@ return [
     | Default Country Code
     |--------------------------------------------------------------------------
     |
-    | Best-effort dialling prefix prepended to phone numbers entered without a
-    | leading "+". Leave null to store bare digits. Example: "421".
+    | Best-effort dialling prefix for phone numbers entered in national format
+    | (no leading "+" or "00"): "0900 123 456" becomes "+421900123456" — the
+    | trunk 0 is dropped, except for Italy/San Marino, where it is part of the
+    | number. A leading "00" is always read as "+". Leave null to store the
+    | bare digits of a national number. Example: "421".
     |
     */
 
