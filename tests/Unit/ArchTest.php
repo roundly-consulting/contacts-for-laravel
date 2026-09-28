@@ -21,7 +21,7 @@ ArchPresets::strictTypes('RoundlyConsulting\Contacts');
  * The deliberate extension points are exempt: `Contact` is what `contacts.model` invites
  * a host to subclass (pinned by the preset below instead), ContactException is the base
  * every contacts error extends so a host can catch them uniformly, and ContactsManager is
- * extended by the package's own shipped `FakeContactsManager` — a host-facing test double,
+ * extended by the package's own shipped `ContactsFake` — a host-facing test double,
  * so the openness is part of the published surface rather than an oversight.
  */
 ArchPresets::finalByDefault('RoundlyConsulting\Contacts')
@@ -89,3 +89,9 @@ ArchPresets::morphColumnsUseTheSeam(__DIR__.'/../../database/migrations');
 ArchPresets::runtimeRequireIsWhitelisted(__DIR__.'/../../composer.json');
 
 ArchPresets::noDebuggingLeftovers();
+
+/**
+ * One path: the HasContacts trait and Contact's verification methods reach the manager,
+ * never an action, so `Contacts::fake()` sees every call they make.
+ */
+ArchPresets::modelsGoThroughTheFacade('RoundlyConsulting\Contacts');
