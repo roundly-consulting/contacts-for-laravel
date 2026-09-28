@@ -70,10 +70,12 @@ it('reads config validation rules for a kind', function (): void {
     expect(ContactType::Social->validationRules())->toBe(['required', 'string', 'min:2']);
 });
 
-it('appends ValidContactValue to a ready rule set', function (): void {
+it('keeps the field rules and leaves the format to ValidContactValue', function (): void {
     $rules = ContactType::Email->rules();
 
-    expect($rules)->toContain('email')
+    // `email` runs inside ValidContactValue, on the normalized value — on the raw input
+    // it would refuse ' A.Person@Example.COM ', which addEmail() accepts.
+    expect(array_slice($rules, 0, -1))->toBe(['required', 'string'])
         ->and(end($rules))->toBeInstanceOf(ValidContactValue::class);
 });
 

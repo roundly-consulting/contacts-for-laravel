@@ -6,6 +6,8 @@ namespace RoundlyConsulting\Contacts\Support;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use RoundlyConsulting\Contacts\Enums\ContactType;
+use RoundlyConsulting\Contacts\Rules\ValidContactEntryValue;
+use RoundlyConsulting\Contacts\Rules\ValidContactValue;
 
 /**
  * Builds validation rule arrays for host FormRequests that accept a repeatable
@@ -18,9 +20,9 @@ use RoundlyConsulting\Contacts\Enums\ContactType;
 final class ContactRules
 {
     /**
-     * Rules for a repeatable `contacts.*` array of {type, value} pairs. The
-     * value rule validates each entry against the configured rules for its
-     * declared type via ValidContactValue.
+     * Rules for a repeatable `contacts.*` array of {type, value} pairs. Each value is
+     * normalized and validated against the rules of the kind its entry declares
+     * (ValidContactEntryValue), including a custom kind's registered rules.
      *
      * @return array<string, list<string|ValidationRule>>
      */
@@ -29,18 +31,19 @@ final class ContactRules
         return [
             $key => ['sometimes', 'array'],
             $key.'.*.type' => ['required', 'string', 'in:'.implode(',', self::kinds())],
-            $key.'.*.value' => ['required', 'string'],
+            $key.'.*.value' => ['required', 'string', new ValidContactEntryValue],
         ];
     }
 
     /**
-     * Rules for a single contact value field of a known kind.
+     * Rules for a single contact value field of a known kind, or of a registered custom
+     * kind when `$kind` is given.
      *
      * @return list<string|ValidationRule>
      */
-    public static function forValue(ContactType $type): array
+    public static function forValue(ContactType $type, ?string $kind = null): array
     {
-        return $type->rules();
+        return ValidContactValue::fieldRules($type, $kind);
     }
 
     /**

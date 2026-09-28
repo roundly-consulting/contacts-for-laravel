@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Contacts\Enums;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use RoundlyConsulting\Contacts\Rules\ValidContactValue;
 use RoundlyConsulting\Contacts\Support\ContactValueNormalizer;
 use RoundlyConsulting\Enums\Helpers;
@@ -110,8 +111,9 @@ enum ContactType: string
     }
 
     /**
-     * Illuminate validation rule strings for this kind. Custom/Social/Address
-     * rules can be overridden through the `contacts.types` registry.
+     * Illuminate validation rule strings for this kind, applied to the NORMALIZED value
+     * (by ValidContactValue and the add/update actions). Every kind's rules can be
+     * overridden through the `contacts.types` registry.
      *
      * @return list<string>
      */
@@ -135,22 +137,24 @@ enum ContactType: string
     }
 
     /**
-     * Ready-to-use FormRequest rules for a single value of this kind, ending
-     * with the reusable ValidContactValue rule. Drop it straight into a request:
+     * Ready-to-use FormRequest rules for a single raw value of this kind: the field rules
+     * (`required`, `string`, …) plus ValidContactValue, which validates the normalized
+     * value — so `'+421 900 000 000'` passes `Phone->rules()` exactly as `addPhone()`
+     * accepts it. Drop it straight into a request:
      *
      *     'email' => ContactType::Email->rules(),
      *
-     * @return list<string|ValidContactValue>
+     * @return list<string|ValidationRule>
      */
     public function rules(): array
     {
-        return [...$this->validationRules(), new ValidContactValue($this)];
+        return ValidContactValue::fieldRules($this);
     }
 
     /**
      * Static convenience equivalent of {@see self::rules()}.
      *
-     * @return list<string|ValidContactValue>
+     * @return list<string|ValidationRule>
      */
     public static function rulesFor(self $type): array
     {
