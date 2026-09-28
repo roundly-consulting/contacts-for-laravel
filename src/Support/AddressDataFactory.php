@@ -15,14 +15,18 @@ use RoundlyConsulting\Addresses\Enums\AddressType;
 final class AddressDataFactory
 {
     /**
+     * A missing or unrecognised `type` is passed on as null, so the address takes the
+     * host's `addresses.default_type` exactly as one created through the addresses
+     * package would.
+     *
      * @param  array<string, mixed>  $attributes
      */
     public static function fromArray(array $attributes): AddressData
     {
-        $type = $attributes['type'] ?? AddressType::Default;
+        $type = $attributes['type'] ?? null;
 
         if (is_string($type)) {
-            $type = AddressType::tryFrom($type) ?? AddressType::Default;
+            $type = AddressType::tryFrom(strtolower(trim($type)));
         }
 
         $meta = $attributes['meta'] ?? null;
@@ -33,7 +37,7 @@ final class AddressDataFactory
             postalCode: self::string($attributes, 'postalCode', 'postal_code'),
             countryIso: self::string($attributes, 'countryIso', 'country_iso'),
             name: self::nullableString($attributes, 'name'),
-            type: $type instanceof AddressType ? $type : AddressType::Default,
+            type: $type instanceof AddressType ? $type : null,
             isPrimary: (bool) ($attributes['isPrimary'] ?? $attributes['is_primary'] ?? false),
             meta: $meta instanceof Collection ? $meta : null,
         );
