@@ -14,8 +14,11 @@ Initial public release.
   `addUrl()`, `addAddress()`, `primaryEmail()`, `primaryPhone()` and `contactsOfType()`.
 - Six built-in kinds in the `ContactType` enum (email, phone, address, URL, social, custom) plus
   custom kinds registered in config, each with its own label, icon and validation rules.
-- Automatic normalization and validation of every value, one primary contact per kind, and
-  ordering by position.
+- Automatic normalization and validation of every value (national phone formats included, capped
+  at the 255-character column), one primary contact per kind — kept through updates, deletes and
+  syncs, with the next contact promoted while `auto_primary` is on — and ordering by position.
+- Soft deletes that trash a contact's structured addresses and connections with it; `restore()`
+  brings them back and `forceDelete()` removes them.
 - A `Contacts` facade over an injectable `ContactsManager`. `Contacts::for($owner)` returns the
   owner's contact book: fluent adds (`->email(...)->primary()->add()`, `->phone()`, `->url()`,
   `->address()`, `->structuredAddress()`, `->type()`), `add(ContactData)`, `sync()` to reconcile a
@@ -24,9 +27,12 @@ Initial public release.
 - Verification by token or numeric code through `Contacts::verification()->request()` /
   `->confirm()` (or `$contact->requestVerification()` / `confirmVerification()`), plus
   `->markVerified()` for out-of-band checks. Only a hash is stored; delivery is left to your own
-  mail or SMS listener.
-- Reusable validation: the `ValidContactValue` rule, `ContactType::rules()` and
-  `Contacts::validationRules()` for repeatable contact lists.
+  mail or SMS listener. Each token survives `verification.max_attempts` wrong guesses (default 5,
+  counted in the database) before it is voided with `VerificationAttemptsExceeded`, and changing a
+  contact's value or kind drops its verification and any pending token.
+- Reusable validation on the normalized value: the `ValidContactValue` rule, `ContactType::rules()`
+  and `Contacts::validationRules()` for repeatable contact lists, which checks each value against
+  the kind its entry declares.
 - Query scopes (`forOwner()`, `ofType()`, `primary()`, `verified()`, `search()`, `ordered()`, …)
   and events for every write (`ContactAdded`, `ContactVerified`, `PrimaryContactChanged`, …).
 - The opt-in `RoutesNotificationsViaContacts` trait routes mail, Vonage and Twilio notifications to

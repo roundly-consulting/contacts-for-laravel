@@ -22,7 +22,8 @@
 Typed, validated, primary-aware contacts for any Laravel model. Attach emails, phones,
 addresses, URLs, social handles, and custom kinds to a user, company, order, or anything
 else — with normalization, a primary-per-kind guarantee, ordering, verification, events,
-a fluent facade, and native vCard export. Zero non-Laravel runtime dependencies.
+a fluent facade, and native vCard export. At runtime it needs only Laravel and five sibling
+Roundly packages (see [Integrates with](#integrates-with)).
 
 ## Requirements
 
@@ -43,8 +44,10 @@ php artisan vendor:publish --tag="contacts-migrations"
 php artisan migrate
 ```
 
-Publishing is idempotent: it lands as a timestamped file you own and can edit, and re-publishing
-overwrites that same file instead of adding a second copy.
+The migration lands as a timestamped file you own. Re-publishing an unedited copy (with `--force`)
+overwrites it in place instead of adding a second one; a copy you edited — or any other
+same-named migration — is never overwritten: the package's migration is published beside it under
+a fresh timestamp, and you decide which one to keep.
 
 Optionally publish the config file or translations:
 
@@ -61,6 +64,7 @@ The published `config/contacts.php`:
 return [
     'model' => RoundlyConsulting\Contacts\Models\Contact::class,
     'table' => 'contacts',
+    'key_type' => env('CONTACTS_KEY_TYPE', 'bigint'),
     'auto_primary' => true,
     'require_owner_for_primary' => false,
     'default_country_code' => env('CONTACTS_DEFAULT_COUNTRY_CODE'),
@@ -69,6 +73,7 @@ return [
         'style' => env('CONTACTS_VERIFICATION_STYLE', 'code'),
         'code_length' => (int) env('CONTACTS_VERIFICATION_CODE_LENGTH', 6),
         'token_length' => (int) env('CONTACTS_VERIFICATION_TOKEN_LENGTH', 32),
+        'max_attempts' => (int) env('CONTACTS_VERIFICATION_MAX_ATTEMPTS', 5),
     ],
     'types' => [
         // 'whatsapp' => ['label' => 'WhatsApp', 'icon' => 'chat', 'rules' => ['required', 'string']],
@@ -83,15 +88,21 @@ return [
 |-----|------|---------|---------|
 | `model` | `class-string` | `Contact::class` | Model the `HasContacts` trait resolves for the `contacts()` relationship. |
 | `table` | `string` | `contacts` | Database table contacts are stored in. |
-| `auto_primary` | `bool` | `true` | When set, the first contact of a kind added for an owner becomes its primary. |
+| `key_type` | `string` | `bigint` (`CONTACTS_KEY_TYPE`) | Key type of the polymorphic `owner` column: `bigint`, `uuid` or `ulid` (anything else falls back to `bigint`). Read when the migration runs, so set it before migrating. |
+| `auto_primary` | `bool` | `true` | When set, the first contact of a kind added for an owner becomes its primary, and when the primary leaves a kind (deleted, synced away, moved to another kind) the next contact by position takes over. |
 | `require_owner_for_primary` | `bool` | `false` | When set, only owned contacts may be primary; otherwise a `PrimaryContactConflict` is thrown. |
-| `default_country_code` | `?string` | `env('CONTACTS_DEFAULT_COUNTRY_CODE')` | Best-effort dialling prefix added to phone numbers entered without a leading `+`. |
+| `default_country_code` | `?string` | `env('CONTACTS_DEFAULT_COUNTRY_CODE')` | Best-effort dialling prefix for phone numbers entered in national format (see [Contact kinds](#contact-kinds)). |
 | `verification.ttl` | `int` | `60` (`CONTACTS_VERIFICATION_TTL`) | Minutes a verification token stays valid. |
 | `verification.style` | `string` | `code` (`CONTACTS_VERIFICATION_STYLE`) | `code` for a numeric one-time code, `token` for a random hex string. |
-| `verification.code_length` | `int` | `6` (`CONTACTS_VERIFICATION_CODE_LENGTH`) | Number of digits when style is `code`. |
-| `verification.token_length` | `int` | `32` (`CONTACTS_VERIFICATION_TOKEN_LENGTH`) | Bytes of randomness when style is `token` (hex-encoded, so the string is twice this). |
+| `verification.code_length` | `int` | `6` (`CONTACTS_VERIFICATION_CODE_LENGTH`) | Number of digits when style is `code`, 1–72. |
+| `verification.token_length` | `int` | `32` (`CONTACTS_VERIFICATION_TOKEN_LENGTH`) | Bytes of randomness when style is `token`, 1–36 (hex-encoded, so the string is twice this; bcrypt reads only the first 72 characters). |
+| `verification.max_attempts` | `int` | `5` (`CONTACTS_VERIFICATION_MAX_ATTEMPTS`) | Wrong guesses a token survives, 1–1000. The guess that spends the last one voids the token. |
 | `types` | `array` | `[]` | Register custom kinds and override the label/icon/rules of built-in kinds. |
 | `relationship_kinds` | `array` | `[]` | Allow-list for the typed relationship helpers (`relateTo`/`relationsOfKind`). Empty = free-form; a list or `kind => label` map restricts kinds. |
+
+The two switches accept env-style strings (`'true'`/`'false'`, `'1'`/`'0'`, `'on'`/`'off'`), and
+the numeric keys accept numeric strings. An out-of-range length or attempt count throws an
+`InvalidConfigurationException` rather than being clamped.
 
 ## Contact kinds
 
@@ -100,10 +111,24 @@ return [
 normalization, a translatable label, and an icon name:
 
 - **Email** — lower-cased and trimmed, validated with the `email` rule.
-- **Phone** — separators stripped, leading `+` kept, validated against an E.164-ish regex.
-  Without a `+`, `default_country_code` is prepended when configured.
+- **Phone** — separators stripped, leading `+` kept, validated against an E.164-ish regex. A
+  leading `00` is read as `+`, and a `(0)` after the country code is dropped
+  (`+44 (0)20 7946 0000` → `+442079460000`). With `default_country_code` set (e.g. `421`), a
+  national number gets it in place of its trunk `0`: `0900 123 456` → `+421900123456` (Italy and
+  San Marino keep the `0`, as their numbers do). Without it, a national number keeps its bare
+  digits.
 - **Url** — `https://` prepended when no scheme is present, validated with the `url` rule.
 - **Address / Social / Custom** — trimmed; `required|string` by default.
+
+Rules always run on the **normalized** value — what gets stored — and every value is capped at
+255 characters, the `value` column's length. A value that fails either throws
+`InvalidContactValue` before anything is written.
+
+**One primary per kind.** An owner has at most one primary contact per kind, always. With
+`auto_primary` on (the default) a kind that has contacts also keeps a primary: the first one added
+becomes it, and when the primary is deleted, synced away or moved to another kind, the next
+contact by position is promoted (firing `PrimaryContactChanged`). With it off, nothing is promoted
+for you.
 
 ### Custom kinds
 
@@ -178,9 +203,9 @@ Contacts::delete($contact);
 |---|---|
 | `for($owner)` | the owner's `ContactBook` (below) |
 | `verification()` | the `ContactVerification` accessor: `request()`, `confirm()`, `markVerified()` |
-| `update($contact, ContactData)` | overwrite a contact; a primary flag promotes it |
+| `update($contact, ContactData)` | overwrite a contact; a primary flag promotes it. A new value or kind drops the verification. |
 | `setPrimary($contact)` | promote a contact, demoting its owner's other primary of the same kind |
-| `delete($contact)` | soft-delete a contact |
+| `delete($contact)` | soft-delete a contact; deleting the primary promotes the next one (`auto_primary`) |
 | `sharedWith(Connectable $owner)` | contacts connected to an owner (see connections below) |
 | `validationRules(string $key = 'contacts')` | `contacts.*` rules for a repeatable form |
 | `fake()` | swap in `ContactsFake` (see Testing helper) |
@@ -272,10 +297,23 @@ Event::listen(function (ContactVerificationRequested $event): void {
 });
 ```
 
-Confirmation throws `InvalidVerificationToken` (wrong/absent token) or `VerificationExpired`
-(past the TTL). Both extend `ContactException`. Token TTL and style (numeric `code` vs random
-`token`) are configured under `contacts.verification`. The factory ships a
+Confirmation throws `InvalidVerificationToken` (wrong, absent or voided token) or
+`VerificationExpired` (past the TTL). Both extend `ContactException`. Token TTL and style (numeric
+`code` vs random `token`) are configured under `contacts.verification`. The factory ships a
 `pendingVerification()` state and a `pendingVerification()` query scope.
+
+Guarding the code:
+
+- **Attempt limit.** Each token survives `verification.max_attempts` (default 5) wrong guesses.
+  The guess that spends the last one voids the token and throws `VerificationAttemptsExceeded` — a
+  subclass of `InvalidVerificationToken`, so one `catch` covers both; ask for a new token then. The
+  count lives in the database, so parallel requests share one budget. A new `request()` starts a
+  fresh budget, so rate-limit how often your app lets a user request a token (e.g. Laravel's
+  `RateLimiter`).
+- **A verification belongs to one value.** Changing a contact's value or kind — through
+  `update()`, `sync()` or a direct `$contact->update([...])` — clears `verified_at` and voids any
+  pending token, so a token sent to the old address can never confirm the new one. A write that
+  sets `verified_at` itself (e.g. an import) is kept.
 
 ### Syncing a set of contacts (e.g. a profile form)
 
@@ -287,7 +325,8 @@ Contacts::for($user)->sync(ContactType::Phone, [
 ```
 
 `sync()` updates matching values in place, creates new ones, deletes the rest, and assigns
-`position` by input order.
+`position` by input order. If the primary is among the deleted and no item asks for `isPrimary`,
+the first synced contact becomes the primary (`auto_primary`).
 
 ### Reusing validation in a FormRequest
 
@@ -302,8 +341,10 @@ $request->validate([
 ]);
 ```
 
-`ContactType::rules()` returns a ready rule array (the kind's base rules plus
-`ValidContactValue`), so a FormRequest stays a one-liner:
+`ContactType::rules()` returns a ready rule array — the kind's field rules (`required`,
+`string`, …) plus `ValidContactValue`, which checks the **normalized** value — so a FormRequest
+stays a one-liner and accepts exactly what `addEmail()` / `addPhone()` / `addUrl()` accept
+(`' A.Person@Example.COM '`, `'+421 900 000 000'`, `'example.com'`):
 
 ```php
 public function rules(): array
@@ -315,8 +356,12 @@ public function rules(): array
 }
 ```
 
+For a registered custom kind use `ContactRules::forValue(ContactType::Custom, 'whatsapp')`. The
+validated input is still the raw string; the package normalizes it when you add it.
+
 For a repeatable list of `{type, value}` pairs (e.g. a "manage contacts" form), generate
-`contacts.*` rules driven by the configured kinds:
+`contacts.*` rules: each `type` must be a built-in or registered kind, and each `value` is
+normalized and validated against the rules of the kind its entry declares:
 
 ```php
 use RoundlyConsulting\Contacts\Facades\Contacts;
@@ -463,19 +508,31 @@ expect($company)
 
 The relation stays available for direct use: `contacts()`, its query scopes, the `meta`
 collection cast, and `$user->contacts()->create([...])`. Normalization, validation, and
-auto-primary apply only through the action / facade / trait-sugar path.
+auto-primary apply only through the action / facade / trait-sugar path. Dropping the
+verification on a value change applies everywhere, direct writes included.
 
-Contacts use soft deletes, so a deleted contact stays retrievable via `withTrashed()`.
+Contacts use soft deletes, so a deleted contact stays retrievable via `withTrashed()`. A soft
+delete trashes the contact's structured addresses and connections with it, and `restore()` brings
+back exactly those (not ones you had deleted separately before). A restored primary comes back as
+a secondary if its kind promoted another contact meanwhile. `forceDelete()` removes the addresses
+and connections for good.
+
+```php
+Contacts::delete($contact);
+Contact::withTrashed()->find($contact->id)->restore();   // addresses + connections are back
+```
 
 ## Integrates with
 
-This package hard-requires four roundly packages (wired automatically), turning a flat contact
+This package hard-requires five roundly packages (wired automatically), turning a flat contact
 list into a small CRM-grade address book + relationship graph.
 
 - **[addresses-for-laravel](https://github.com/roundly-consulting/addresses-for-laravel)** —
   structured, validated postal addresses on a `Contact`.
 - **[connections-for-laravel](https://github.com/roundly-consulting/connections-for-laravel)** —
   contact ↔ contact and owner ↔ contact affiliations.
+- **[crypto-for-laravel](https://github.com/roundly-consulting/crypto-for-laravel)** — the
+  CSPRNG draw and hex encoding behind verification tokens and codes.
 - **[enums-for-laravel](https://github.com/roundly-consulting/enums-for-laravel)** — select/label
   helpers on `ContactType`.
 - **[package-toolkit-for-laravel](https://github.com/roundly-consulting/package-toolkit-for-laravel)**
