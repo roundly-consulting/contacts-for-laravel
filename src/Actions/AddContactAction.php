@@ -15,6 +15,7 @@ use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Rules\ValidContactValue;
 use RoundlyConsulting\Contacts\Support\ContactAddressFormatter;
 use RoundlyConsulting\Contacts\Support\ContactModel;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 
 /**
  * Add a normalized, validated contact to an owner. The first contact of a kind becomes
@@ -55,7 +56,7 @@ final readonly class AddContactAction
             ->exists();
 
         $shouldBePrimary = $data->isPrimary
-            || ($isFirstOfKind && (bool) config('contacts.auto_primary', true));
+            || ($isFirstOfKind && Config::boolean('contacts.auto_primary', true));
 
         $position = $data->position ?? $this->nextPosition($owner, $model, $data->kind);
 

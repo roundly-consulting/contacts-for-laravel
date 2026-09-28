@@ -9,6 +9,7 @@ use RoundlyConsulting\Contacts\Support\ContactModel;
 use RoundlyConsulting\PackageToolkit\Concerns\RegistersBlueprintMacros;
 use RoundlyConsulting\PackageToolkit\Package;
 use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 
 final class ContactsServiceProvider extends PackageServiceProvider
 {
@@ -25,8 +26,8 @@ final class ContactsServiceProvider extends PackageServiceProvider
             ->contributesToAbout(static fn (): array => [
                 'Model' => class_basename(ContactModel::class()),
                 'Table' => (string) config('contacts.table', 'contacts'),
-                'Auto primary' => config('contacts.auto_primary', true) === true ? 'ON' : 'OFF',
-                'Require owner for primary' => config('contacts.require_owner_for_primary') === true ? 'ON' : 'OFF',
+                'Auto primary' => Config::boolean('contacts.auto_primary', true) ? 'ON' : 'OFF',
+                'Require owner for primary' => Config::boolean('contacts.require_owner_for_primary') ? 'ON' : 'OFF',
                 'Default country code' => self::countryCode(),
                 'Verification' => self::verification(),
                 // Counts, never the entries — the registered kinds and the
