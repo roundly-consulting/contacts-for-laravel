@@ -17,7 +17,7 @@ use SensitiveParameter;
  * contact is marked verified, the token fields are cleared, and the existing
  * ContactVerified event fires.
  */
-final class ConfirmContactVerificationAction
+final readonly class ConfirmContactVerificationAction
 {
     public function execute(Contact $contact, #[SensitiveParameter] string $token): Contact
     {

@@ -7,7 +7,7 @@ namespace RoundlyConsulting\Contacts\Actions;
 use RoundlyConsulting\Contacts\Events\ContactDeleted;
 use RoundlyConsulting\Contacts\Models\Contact;
 
-final class DeleteContactAction
+final readonly class DeleteContactAction
 {
     public function execute(Contact $contact): void
     {

@@ -10,10 +10,10 @@ use RoundlyConsulting\Contacts\Exceptions\InvalidContactValue;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Rules\ValidContactValue;
 
-final class UpdateContactAction
+final readonly class UpdateContactAction
 {
     public function __construct(
-        private readonly SetPrimaryContactAction $setPrimary,
+        private SetPrimaryContactAction $setPrimary,
     ) {}
 
     public function execute(Contact $contact, ContactData $data): Contact

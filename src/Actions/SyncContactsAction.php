@@ -11,12 +11,12 @@ use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Support\ContactModel;
 
-final class SyncContactsAction
+final readonly class SyncContactsAction
 {
     public function __construct(
-        private readonly AddContactAction $add,
-        private readonly UpdateContactAction $update,
-        private readonly DeleteContactAction $delete,
+        private AddContactAction $add,
+        private UpdateContactAction $update,
+        private DeleteContactAction $delete,
     ) {}
 
     /**
@@ -51,6 +51,7 @@ final class SyncContactsAction
                 isPrimary: $item->isPrimary,
                 position: $position,
                 meta: $item->meta,
+                address: $item->address,
             );
 
             $normalizedValue = $type->normalize($item->value);

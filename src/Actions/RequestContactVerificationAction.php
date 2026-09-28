@@ -17,7 +17,7 @@ use RoundlyConsulting\Crypto\Random\Token;
  * expiry, and dispatch ContactVerificationRequested with the plaintext so the
  * host application can deliver it. The package never sends anything itself.
  */
-final class RequestContactVerificationAction
+final readonly class RequestContactVerificationAction
 {
     public function execute(Contact $contact): string
     {

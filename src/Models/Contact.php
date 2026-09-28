@@ -16,9 +16,8 @@ use RoundlyConsulting\Addresses\Contracts\Addressable;
 use RoundlyConsulting\Addresses\Traits\HasAddresses;
 use RoundlyConsulting\Connections\Concerns\HasConnections;
 use RoundlyConsulting\Connections\Contracts\Connectable;
-use RoundlyConsulting\Contacts\Actions\ConfirmContactVerificationAction;
-use RoundlyConsulting\Contacts\Actions\RequestContactVerificationAction;
 use RoundlyConsulting\Contacts\Concerns\HasContactRelations;
+use RoundlyConsulting\Contacts\ContactsManager;
 use RoundlyConsulting\Contacts\Database\Factories\ContactFactory;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Support\ContactKind;
@@ -298,15 +297,15 @@ class Contact extends Model implements Addressable, Connectable
      */
     public function requestVerification(): string
     {
-        return app(RequestContactVerificationAction::class)->execute($this);
+        return app(ContactsManager::class)->verification()->request($this);
     }
 
     /**
      * Confirm the contact against a plaintext token, marking it verified.
      */
-    public function confirmVerification(#[SensitiveParameter] string $token): self
+    public function confirmVerification(#[SensitiveParameter] string $token): Contact
     {
-        return app(ConfirmContactVerificationAction::class)->execute($this, $token);
+        return app(ContactsManager::class)->verification()->confirm($this, $token);
     }
 
     protected static function booted(): void

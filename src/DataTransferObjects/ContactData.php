@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Contacts\DataTransferObjects;
 
+use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
+use RoundlyConsulting\Contacts\Support\AddressDataFactory;
 use RoundlyConsulting\Contacts\Support\ContactKind;
 
 final readonly class ContactData
@@ -25,6 +27,9 @@ final readonly class ContactData
 
     /**
      * @param  array<string, mixed>  $meta
+     * @param  AddressData|null  $address  a structured postal address to attach — address-type
+     *                                     contacts only. The contact's value then mirrors the
+     *                                     address's one-line render (and defaults to it when empty).
      */
     public function __construct(
         public ContactType $type,
@@ -36,6 +41,7 @@ final readonly class ContactData
         public ?int $position = null,
         public array $meta = [],
         ?string $kind = null,
+        public ?AddressData $address = null,
     ) {
         $this->kind = $kind ?? $type->value;
     }
@@ -66,6 +72,12 @@ final readonly class ContactData
         /** @var array<string, mixed> $meta */
         $meta = is_array($attributes['meta'] ?? null) ? $attributes['meta'] : [];
 
+        $address = $attributes['address'] ?? null;
+
+        if (is_array($address)) {
+            $address = AddressDataFactory::fromArray($address);
+        }
+
         return new self(
             type: $type,
             value: (string) ($attributes['value'] ?? ''),
@@ -76,6 +88,7 @@ final readonly class ContactData
             position: isset($attributes['position']) ? (int) $attributes['position'] : null,
             meta: $meta,
             kind: $kind,
+            address: $address instanceof AddressData ? $address : null,
         );
     }
 
@@ -113,9 +126,17 @@ final readonly class ContactData
      */
     public function normalized(): self
     {
+        return $this->withValue($this->type->normalize($this->value));
+    }
+
+    /**
+     * Return a copy carrying another value.
+     */
+    public function withValue(string $value): self
+    {
         return new self(
             type: $this->type,
-            value: $this->type->normalize($this->value),
+            value: $value,
             label: $this->label,
             name: $this->name,
             category: $this->category,
@@ -123,6 +144,7 @@ final readonly class ContactData
             position: $this->position,
             meta: $this->meta,
             kind: $this->kind,
+            address: $this->address,
         );
     }
 

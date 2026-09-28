@@ -9,7 +9,7 @@ use Illuminate\Support\Carbon;
 use RoundlyConsulting\Contacts\Events\ContactVerified;
 use RoundlyConsulting\Contacts\Models\Contact;
 
-final class VerifyContactAction
+final readonly class VerifyContactAction
 {
     public function execute(Contact $contact, ?CarbonInterface $at = null): Contact
     {

@@ -5,21 +5,40 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Contacts\Actions;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
+use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Events\ContactAdded;
 use RoundlyConsulting\Contacts\Exceptions\InvalidContactValue;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Rules\ValidContactValue;
+use RoundlyConsulting\Contacts\Support\ContactAddressFormatter;
 use RoundlyConsulting\Contacts\Support\ContactModel;
 
-final class AddContactAction
+/**
+ * Add a normalized, validated contact to an owner. The first contact of a kind becomes
+ * primary (unless `contacts.auto_primary` is off); a structured address on the data is
+ * attached in the same transaction and its one-line render becomes the contact's value.
+ */
+final readonly class AddContactAction
 {
     public function __construct(
-        private readonly SetPrimaryContactAction $setPrimary,
+        private SetPrimaryContactAction $setPrimary,
     ) {}
 
     public function execute(Model $owner, ContactData $data): Contact
     {
+        if ($data->address instanceof AddressData) {
+            if ($data->type !== ContactType::Address) {
+                throw InvalidContactValue::structuredAddressOn($data->kind);
+            }
+
+            if (trim($data->value) === '') {
+                $data = $data->withValue(ContactAddressFormatter::fromData($data->address));
+            }
+        }
+
         $data = $data->normalized();
 
         if (! ValidContactValue::passes($data->type, $data->value, $data->kind)) {
@@ -40,17 +59,25 @@ final class AddContactAction
 
         $position = $data->position ?? $this->nextPosition($owner, $model, $data->kind);
 
-        /** @var Contact $contact */
-        $contact = $owner->morphMany($model, 'owner')->create([
-            'type' => $data->kind,
-            'name' => $data->name ?? '',
-            'value' => $data->value,
-            'label' => $data->label,
-            'category' => $data->category,
-            'position' => $position,
-            'is_primary' => false,
-            'meta' => $data->meta,
-        ]);
+        $contact = DB::transaction(function () use ($owner, $model, $data, $position): Contact {
+            /** @var Contact $contact */
+            $contact = $owner->morphMany($model, 'owner')->create([
+                'type' => $data->kind,
+                'name' => $data->name ?? '',
+                'value' => $data->value,
+                'label' => $data->label,
+                'category' => $data->category,
+                'position' => $position,
+                'is_primary' => false,
+                'meta' => $data->meta,
+            ]);
+
+            if ($data->address instanceof AddressData) {
+                ContactAddressFormatter::attach($contact, $data->address);
+            }
+
+            return $contact;
+        });
 
         event(new ContactAdded($contact));
 

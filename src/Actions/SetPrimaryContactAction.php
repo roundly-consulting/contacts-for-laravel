@@ -9,7 +9,7 @@ use RoundlyConsulting\Contacts\Events\PrimaryContactChanged;
 use RoundlyConsulting\Contacts\Exceptions\PrimaryContactConflict;
 use RoundlyConsulting\Contacts\Models\Contact;
 
-final class SetPrimaryContactAction
+final readonly class SetPrimaryContactAction
 {
     public function execute(Contact $contact): Contact
     {

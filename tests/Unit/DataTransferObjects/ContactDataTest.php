@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 
@@ -46,4 +47,25 @@ it('returns a normalized copy', function (): void {
     expect($normalized)->not->toBe($data)
         ->and($normalized->value)->toBe('foo@bar.com')
         ->and($normalized->type)->toBe(ContactType::Email);
+});
+
+it('carries a structured address from an array or a dto', function (): void {
+    $fromArray = ContactData::fromArray([
+        'type' => 'address',
+        'address' => ['city' => 'Vienna', 'street' => 'Ring 3', 'postal_code' => '1010', 'country_iso' => 'AT'],
+    ]);
+    $dto = AddressData::make(
+        city: 'Vienna',
+        street: 'Ring 3',
+        postalCode: '1010',
+        countryIso: 'AT',
+    );
+    $fromDto = ContactData::fromArray(['type' => 'address', 'address' => $dto]);
+    $without = ContactData::fromArray(['type' => 'address', 'address' => 'Ring 3']);
+
+    expect($fromArray->address?->city)->toBe('Vienna')
+        ->and($fromDto->address)->toBe($dto)
+        ->and($fromDto->normalized()->address)->toBe($dto)
+        ->and($fromDto->withValue('x')->value)->toBe('x')
+        ->and($without->address)->toBeNull();
 });

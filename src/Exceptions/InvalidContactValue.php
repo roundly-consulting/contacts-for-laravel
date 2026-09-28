@@ -17,4 +17,13 @@ final class InvalidContactValue extends ContactException
     {
         return new self(__('contacts::errors.invalid_value', ['type' => $kind ?? $type->value]));
     }
+
+    /**
+     * A structured postal address was given for a contact that is not an address — its
+     * one-line render would otherwise overwrite (and bypass validation of) the real value.
+     */
+    public static function structuredAddressOn(string $kind): self
+    {
+        return new self(__('contacts::errors.structured_address_kind', ['type' => $kind]));
+    }
 }

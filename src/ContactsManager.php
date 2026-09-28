@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Contacts;
 
 use Carbon\CarbonInterface;
+use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
@@ -23,79 +24,60 @@ use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Support\ContactModel;
 use RoundlyConsulting\Contacts\Support\ContactRules;
-use RoundlyConsulting\Contacts\Support\VCardExporter;
-use RoundlyConsulting\Contacts\Testing\FakeContactsManager;
 use SensitiveParameter;
 
+/**
+ * The root of the `Contacts` facade: an owner's contact book (`for()`), the
+ * verification flow (`verification()`), and the operations on a single contact that
+ * need no owner scope.
+ *
+ * Deliberately not `final`: `Testing\ContactsFake` extends it, so a constructor-injected
+ * manager keeps working under `Contacts::fake()`.
+ */
 class ContactsManager
 {
     public function __construct(
-        private readonly AddContactAction $add,
-        private readonly UpdateContactAction $update,
-        private readonly DeleteContactAction $delete,
-        private readonly SetPrimaryContactAction $setPrimary,
-        private readonly VerifyContactAction $verify,
-        private readonly SyncContactsAction $sync,
-        private readonly RequestContactVerificationAction $requestVerification,
-        private readonly ConfirmContactVerificationAction $confirmVerification,
+        protected readonly Container $container,
     ) {}
 
-    public function add(Model $owner, ContactData $data): Contact
+    /**
+     * The contact book of one owner: add, sync, read and export its contacts.
+     */
+    public function for(Model $owner): ContactBook
     {
-        return $this->add->execute($owner, $data);
+        return new ContactBook($this, $owner);
     }
 
+    /**
+     * The verification flow: issue a token, confirm it, or mark a contact verified.
+     */
+    public function verification(): ContactVerification
+    {
+        return new ContactVerification($this);
+    }
+
+    /**
+     * Overwrite a contact with new data; a primary flag promotes it within its kind.
+     */
     public function update(Contact $contact, ContactData $data): Contact
     {
-        return $this->update->execute($contact, $data);
+        return $this->container->make(UpdateContactAction::class)->execute($contact, $data);
     }
 
+    /**
+     * Soft-delete a contact (dispatches ContactDeleted).
+     */
     public function delete(Contact $contact): void
     {
-        $this->delete->execute($contact);
+        $this->container->make(DeleteContactAction::class)->execute($contact);
     }
 
-    public function for(Model $owner): PendingContact
-    {
-        return new PendingContact($this, $owner);
-    }
-
+    /**
+     * Promote a contact to primary, demoting its owner's other primary of the same kind.
+     */
     public function setPrimary(Contact $contact): Contact
     {
-        return $this->setPrimary->execute($contact);
-    }
-
-    public function verify(Contact $contact, ?CarbonInterface $at = null): Contact
-    {
-        return $this->verify->execute($contact, $at);
-    }
-
-    /**
-     * Generate a verification token for the contact and dispatch
-     * ContactVerificationRequested. Returns the plaintext token for delivery.
-     */
-    public function requestVerification(Contact $contact): string
-    {
-        return $this->requestVerification->execute($contact);
-    }
-
-    public function confirmVerification(Contact $contact, #[SensitiveParameter] string $token): Contact
-    {
-        return $this->confirmVerification->execute($contact, $token);
-    }
-
-    /**
-     * @param  list<ContactData>  $items
-     * @return EloquentCollection<int, Contact>
-     */
-    public function sync(Model $owner, ContactType $type, array $items): EloquentCollection
-    {
-        return $this->sync->execute($owner, $type, $items);
-    }
-
-    public function vCard(Model $owner): string
-    {
-        return VCardExporter::forOwner($owner);
+        return $this->container->make(SetPrimaryContactAction::class)->execute($contact);
     }
 
     /**
@@ -121,15 +103,53 @@ class ContactsManager
         return ContactRules::forArray($key);
     }
 
-    /**
-     * Swap the bound manager for a recording fake and return it.
+    /*
+     * The operations behind for() and verification(). They are public only so the handles
+     * can reach them, and @internal so the facade never documents them. They are also the
+     * ONE place ContactsFake overrides: every call — through the facade, an injected
+     * manager, a handle, the HasContacts trait or a Contact model method — lands here.
      */
-    public static function fake(): FakeContactsManager
+
+    /**
+     * @internal the body of `for($owner)->add()` and the fluent `->email(…)->add()`
+     */
+    public function addFor(Model $owner, ContactData $data): Contact
     {
-        $fake = new FakeContactsManager;
+        return $this->container->make(AddContactAction::class)->execute($owner, $data);
+    }
 
-        app()->instance(self::class, $fake);
+    /**
+     * @internal the body of `for($owner)->sync()`
+     *
+     * @param  list<ContactData>  $items
+     * @return EloquentCollection<int, Contact>
+     */
+    public function syncFor(Model $owner, ContactType $type, array $items): EloquentCollection
+    {
+        return $this->container->make(SyncContactsAction::class)->execute($owner, $type, $items);
+    }
 
-        return $fake;
+    /**
+     * @internal the body of `verification()->request()`
+     */
+    public function requestVerification(Contact $contact): string
+    {
+        return $this->container->make(RequestContactVerificationAction::class)->execute($contact);
+    }
+
+    /**
+     * @internal the body of `verification()->confirm()`
+     */
+    public function confirmVerification(Contact $contact, #[SensitiveParameter] string $token): Contact
+    {
+        return $this->container->make(ConfirmContactVerificationAction::class)->execute($contact, $token);
+    }
+
+    /**
+     * @internal the body of `verification()->markVerified()`
+     */
+    public function markVerified(Contact $contact, ?CarbonInterface $at = null): Contact
+    {
+        return $this->container->make(VerifyContactAction::class)->execute($contact, $at);
     }
 }

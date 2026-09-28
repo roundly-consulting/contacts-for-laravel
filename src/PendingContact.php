@@ -4,17 +4,22 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Contacts;
 
-use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Support\AddressDataFactory;
-use RoundlyConsulting\Contacts\Support\ContactAddressFormatter;
 
+/**
+ * A fluent contact for one owner, started from `Contacts::for($owner)->email(…)`,
+ * `->phone(…)`, `->type(…)`, …; `add()` stores it through the owner's contact book.
+ */
 final class PendingContact
 {
     private ContactType $type = ContactType::Custom;
+
+    /** The raw kind when it is a registered custom kind (e.g. `whatsapp`); null = the type's own. */
+    private ?string $kind = null;
 
     private string $value = '';
 
@@ -31,9 +36,11 @@ final class PendingContact
     /** @var array<string, mixed> */
     private array $meta = [];
 
+    /**
+     * @internal start one with `Contacts::for($owner)->email(…)` and friends
+     */
     public function __construct(
-        private readonly ContactsManager $manager,
-        private readonly Model $owner,
+        private readonly ContactBook $book,
     ) {}
 
     public function type(ContactType|string $type): self
@@ -42,12 +49,17 @@ final class PendingContact
             ? $type
             : ContactType::fromValueOrCustom($type);
 
+        // Keep the raw string: a registered custom kind types as Custom, but its label,
+        // icon and validation rules are keyed by the kind itself.
+        $this->kind = is_string($type) && $type !== '' ? $type : null;
+
         return $this;
     }
 
     public function email(string $value): self
     {
         $this->type = ContactType::Email;
+        $this->kind = null;
         $this->value = $value;
 
         return $this;
@@ -56,6 +68,7 @@ final class PendingContact
     public function phone(string $value): self
     {
         $this->type = ContactType::Phone;
+        $this->kind = null;
         $this->value = $value;
 
         return $this;
@@ -64,6 +77,7 @@ final class PendingContact
     public function url(string $value): self
     {
         $this->type = ContactType::Url;
+        $this->kind = null;
         $this->value = $value;
 
         return $this;
@@ -72,6 +86,7 @@ final class PendingContact
     public function address(string $value): self
     {
         $this->type = ContactType::Address;
+        $this->kind = null;
         $this->value = $value;
 
         return $this;
@@ -87,7 +102,8 @@ final class PendingContact
     /**
      * Attach a validated, structured postal address to this address-type contact.
      * On add() the Address is created and the contact's value becomes its
-     * one-line render. Accepts an AddressData or an attribute array.
+     * one-line render. Accepts an AddressData or an attribute array. A contact of
+     * any kind other than address is refused on add().
      *
      * @param  AddressData|array<string, mixed>  $data
      */
@@ -99,6 +115,7 @@ final class PendingContact
 
         if ($this->type === ContactType::Custom) {
             $this->type = ContactType::Address;
+            $this->kind = null;
         }
 
         return $this;
@@ -144,28 +161,16 @@ final class PendingContact
 
     public function add(): Contact
     {
-        // Ensure the base row passes value validation before the structured
-        // address (if any) overwrites value with its one-line render.
-        $value = $this->value;
-
-        if ($value === '' && $this->structuredAddress instanceof AddressData) {
-            $value = ContactAddressFormatter::fromData($this->structuredAddress);
-        }
-
-        $contact = $this->manager->add($this->owner, new ContactData(
+        return $this->book->add(new ContactData(
             type: $this->type,
-            value: $value,
+            value: $this->value,
             label: $this->label,
             name: $this->name,
             category: $this->category,
             isPrimary: $this->isPrimary,
             meta: $this->meta,
+            kind: $this->kind,
+            address: $this->structuredAddress,
         ));
-
-        if ($this->structuredAddress instanceof AddressData) {
-            ContactAddressFormatter::attach($contact, $this->structuredAddress);
-        }
-
-        return $contact;
     }
 }
