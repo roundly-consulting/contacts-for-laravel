@@ -9,13 +9,16 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
+use RoundlyConsulting\Addresses\Address;
 use RoundlyConsulting\Addresses\Contracts\Addressable;
 use RoundlyConsulting\Addresses\Traits\HasAddresses;
 use RoundlyConsulting\Connections\Concerns\HasConnections;
 use RoundlyConsulting\Connections\Contracts\Connectable;
+use RoundlyConsulting\Connections\Models\Connection;
 use RoundlyConsulting\Contacts\Concerns\HasContactRelations;
 use RoundlyConsulting\Contacts\ContactsManager;
 use RoundlyConsulting\Contacts\Database\Factories\ContactFactory;
@@ -64,6 +67,12 @@ class Contact extends Model implements Addressable, Connectable
 
     /** @var list<string> */
     protected $hidden = ['verification_token'];
+
+    /**
+     * The deletion time a restore() in progress is undoing — how it finds the addresses
+     * and connections that were trashed together with this contact.
+     */
+    private ?CarbonInterface $restoringFrom = null;
 
     /**
      * @return MorphTo<Model, $this>
@@ -336,18 +345,67 @@ class Contact extends Model implements Addressable, Connectable
         // A restored primary must not become a second one: if its kind promoted another
         // contact meanwhile, it comes back as a secondary.
         self::restoring(static function (Contact $contact): void {
+            $contact->restoringFrom = $contact->deleted_at;
+
             if ($contact->is_primary && KindGroup::hasOtherPrimary($contact)) {
                 $contact->is_primary = false;
             }
         });
 
-        // Keep the structured address book and relationship edges from orphaning
-        // when a contact is removed.
-        self::deleted(function (Contact $contact): void {
-            $contact->addresses()->get()->each(static fn ($address) => $address->delete());
-            $contact->connections()->get()->each(static fn ($connection) => $connection->delete());
-            $contact->connectors()->get()->each(static fn ($connection) => $connection->delete());
+        // The structured address book and the relationship edges exist only for this
+        // contact, so they follow it: trashed with a soft delete (and back with a restore),
+        // gone with a force delete.
+        self::deleted(static function (Contact $contact): void {
+            if ($contact->isForceDeleting()) {
+                foreach ($contact->dependents() as $relation) {
+                    $relation->withTrashed()->get()->each(static fn (Address|Connection $child): ?bool => $child->forceDelete());
+                }
+
+                return;
+            }
+
+            $trashedAt = $contact->deleted_at;
+
+            foreach ($contact->dependents() as $relation) {
+                $relation->get()->each(static function (Address|Connection $child) use ($trashedAt): void {
+                    $child->delete();
+
+                    // Stamped with the contact's own deletion time: that shared stamp is how
+                    // restore() tells what went down with the contact from what a host had
+                    // deleted on its own before.
+                    $child->forceFill([$child->getDeletedAtColumn() => $trashedAt])->saveQuietly();
+                });
+            }
         });
+
+        self::restored(static function (Contact $contact): void {
+            $trashedAt = $contact->restoringFrom;
+            $contact->restoringFrom = null;
+
+            if ($trashedAt === null) {
+                return;
+            }
+
+            foreach ($contact->dependents() as $relation) {
+                $related = $relation->getRelated();
+
+                $relation->onlyTrashed()
+                    ->where($related->getDeletedAtColumn(), $related->fromDateTime($trashedAt))
+                    ->get()
+                    ->each(static fn (Address|Connection $child): bool => $child->restore());
+            }
+        });
+    }
+
+    /**
+     * The rows that exist only for this contact: its structured address book and its
+     * relationship edges in both directions.
+     *
+     * @return list<MorphMany<Address, $this>|MorphMany<Connection, $this>>
+     */
+    private function dependents(): array
+    {
+        return [$this->addresses(), $this->connections(), $this->connectors()];
     }
 
     protected static function newFactory(): ContactFactory
