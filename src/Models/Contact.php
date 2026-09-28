@@ -310,6 +310,26 @@ class Contact extends Model implements Addressable, Connectable
 
     protected static function booted(): void
     {
+        // A verification proves ownership of ONE value of ONE kind. Changing either —
+        // through the actions or a low-level write — drops it and voids the pending
+        // token, so a verified address can't be swapped for another and stay verified,
+        // and a token sent to the old value can't confirm the new one. A write that sets
+        // the verification fields itself (e.g. an import) is taken at its word.
+        self::updating(static function (Contact $contact): void {
+            if (! $contact->isDirty(['value', 'type'])) {
+                return;
+            }
+
+            if (! $contact->isDirty('verified_at')) {
+                $contact->verified_at = null;
+            }
+
+            if (! $contact->isDirty('verification_token')) {
+                $contact->verification_token = null;
+                $contact->verification_expires_at = null;
+            }
+        });
+
         // Keep the structured address book and relationship edges from orphaning
         // when a contact is removed.
         self::deleted(function (Contact $contact): void {
