@@ -7,4 +7,5 @@ return [
     'structured_address_kind' => 'A structured address can only be attached to an address contact (got: :type).',
     'invalid_verification_token' => 'The verification token is invalid.',
     'verification_expired' => 'The verification token has expired.',
+    'verification_attempts_exceeded' => 'Too many incorrect verification attempts. Request a new token.',
 ];

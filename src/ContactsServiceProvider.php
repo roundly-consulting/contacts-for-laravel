@@ -66,8 +66,10 @@ final class ContactsServiceProvider extends PackageServiceProvider
     {
         $style = config('contacts.verification.style', 'code');
         $ttl = (int) config('contacts.verification.ttl', 60);
+        $attempts = config('contacts.verification.max_attempts', 5);
 
-        return (is_string($style) ? $style : 'code').', '.$ttl.'m';
+        return (is_string($style) ? $style : 'code').', '.$ttl.'m, '
+            .(is_numeric($attempts) ? (int) $attempts : 5).' attempts';
     }
 
     private static function sizeOf(string $key): int

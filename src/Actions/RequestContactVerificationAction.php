@@ -27,6 +27,8 @@ final readonly class RequestContactVerificationAction
 
         $contact->verification_token = Hash::make($plain);
         $contact->verification_expires_at = Carbon::now()->addMinutes(max(1, $ttl));
+        // A fresh token gets a fresh wrong-guess budget; the old token is gone with it.
+        $contact->verification_attempts = 0;
         $contact->save();
 
         event(new ContactVerificationRequested($contact, $plain));

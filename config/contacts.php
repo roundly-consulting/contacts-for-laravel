@@ -96,6 +96,9 @@ return [
     | - code_length: number of digits when style is "code".
     | - token_length: number of bytes of randomness when style is "token"
     |   (the token is hex-encoded, so the string is twice this length).
+    | - max_attempts: wrong guesses a token survives; the guess that spends the
+    |   last one voids it (VerificationAttemptsExceeded) and a new request is
+    |   needed. Counted in the database, so parallel requests share the budget.
     |
     */
 
@@ -104,6 +107,7 @@ return [
         'style' => env('CONTACTS_VERIFICATION_STYLE', 'code'),
         'code_length' => (int) env('CONTACTS_VERIFICATION_CODE_LENGTH', 6),
         'token_length' => (int) env('CONTACTS_VERIFICATION_TOKEN_LENGTH', 32),
+        'max_attempts' => (int) env('CONTACTS_VERIFICATION_MAX_ATTEMPTS', 5),
     ],
 
     /*

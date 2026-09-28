@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use RoundlyConsulting\Contacts\ContactsManager;
 use RoundlyConsulting\Contacts\Exceptions\ContactException;
+use RoundlyConsulting\Contacts\Exceptions\InvalidVerificationToken;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Testing\Arch\ArchPresets;
 
@@ -23,12 +24,15 @@ ArchPresets::strictTypes('RoundlyConsulting\Contacts');
  * every contacts error extends so a host can catch them uniformly, and ContactsManager is
  * extended by the package's own shipped `ContactsFake` — a host-facing test double,
  * so the openness is part of the published surface rather than an oversight.
+ * InvalidVerificationToken is open for VerificationAttemptsExceeded, so a host catching
+ * the documented "wrong token" error also catches the guess that voided the token.
  */
 ArchPresets::finalByDefault('RoundlyConsulting\Contacts')
     ->ignoring([
         Contact::class,
         ContactException::class,
         ContactsManager::class,
+        InvalidVerificationToken::class,
     ]);
 
 /**

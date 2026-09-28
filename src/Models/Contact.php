@@ -38,6 +38,7 @@ use SensitiveParameter;
  * @property CarbonInterface|null $verified_at
  * @property string|null $verification_token
  * @property CarbonInterface|null $verification_expires_at
+ * @property int $verification_attempts
  * @property Collection<array-key, mixed>|null $meta
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
@@ -327,6 +328,7 @@ class Contact extends Model implements Addressable, Connectable
             if (! $contact->isDirty('verification_token')) {
                 $contact->verification_token = null;
                 $contact->verification_expires_at = null;
+                $contact->verification_attempts = 0;
             }
         });
 
@@ -371,6 +373,7 @@ class Contact extends Model implements Addressable, Connectable
             'position' => 'integer',
             'verified_at' => 'datetime',
             'verification_expires_at' => 'datetime',
+            'verification_attempts' => 'integer',
             'meta' => 'collection',
         ];
     }
