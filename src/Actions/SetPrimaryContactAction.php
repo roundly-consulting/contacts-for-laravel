@@ -8,12 +8,14 @@ use Illuminate\Support\Facades\DB;
 use RoundlyConsulting\Contacts\Events\PrimaryContactChanged;
 use RoundlyConsulting\Contacts\Exceptions\PrimaryContactConflict;
 use RoundlyConsulting\Contacts\Models\Contact;
+use RoundlyConsulting\Contacts\Support\KindGroup;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 
 final readonly class SetPrimaryContactAction
 {
     public function execute(Contact $contact): Contact
     {
-        if (config('contacts.require_owner_for_primary', false) && $contact->owner_id === null) {
+        if ($contact->owner_id === null && Config::boolean('contacts.require_owner_for_primary')) {
             throw PrimaryContactConflict::requiresOwner();
         }
 
@@ -36,20 +38,9 @@ final readonly class SetPrimaryContactAction
      */
     private function demoteSiblings(Contact $contact): ?Contact
     {
-        $query = Contact::query()
-            // The RAW kind, not $contact->type->value: every registered custom kind types
-            // as Custom, so demoting on the enum would let a new `whatsapp` primary demote
-            // an unrelated `telegram` primary.
-            ->where('type', $contact->kind)
+        $query = KindGroup::of($contact)
             ->where('is_primary', true)
             ->whereKeyNot($contact->getKey());
-
-        if ($contact->owner_id === null && $contact->owner_type === null) {
-            $query->whereNull('owner_id')->whereNull('owner_type');
-        } else {
-            $query->where('owner_id', $contact->owner_id)
-                ->where('owner_type', $contact->owner_type);
-        }
 
         $previous = $query->first();
 

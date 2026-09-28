@@ -21,6 +21,7 @@ use RoundlyConsulting\Contacts\ContactsManager;
 use RoundlyConsulting\Contacts\Database\Factories\ContactFactory;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Support\ContactKind;
+use RoundlyConsulting\Contacts\Support\KindGroup;
 use RoundlyConsulting\Contacts\Support\VCardExporter;
 use SensitiveParameter;
 
@@ -329,6 +330,14 @@ class Contact extends Model implements Addressable, Connectable
                 $contact->verification_token = null;
                 $contact->verification_expires_at = null;
                 $contact->verification_attempts = 0;
+            }
+        });
+
+        // A restored primary must not become a second one: if its kind promoted another
+        // contact meanwhile, it comes back as a secondary.
+        self::restoring(static function (Contact $contact): void {
+            if ($contact->is_primary && KindGroup::hasOtherPrimary($contact)) {
+                $contact->is_primary = false;
             }
         });
 

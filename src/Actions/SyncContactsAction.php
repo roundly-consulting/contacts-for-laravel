@@ -23,7 +23,8 @@ final readonly class SyncContactsAction
      * Reconcile an owner's contacts of a single kind to match the given set.
      *
      * Existing contacts whose value matches are updated in place; missing ones
-     * are created; absent ones are deleted. Positions follow input order.
+     * are created; absent ones are deleted. Positions follow input order. When the
+     * primary is synced away, the first synced contact takes over (auto_primary).
      *
      * @param  list<ContactData>  $items
      * @return EloquentCollection<int, Contact>
@@ -71,10 +72,14 @@ final readonly class SyncContactsAction
             $position++;
         }
 
-        foreach ($existing as $contact) {
-            if (! in_array($contact->getKey(), $keptIds, true)) {
-                $this->delete->execute($contact);
-            }
+        // The primary goes last: deleting it promotes the next contact by position, and by
+        // then only the synced set is left to promote from.
+        $stale = $existing
+            ->reject(static fn (Contact $contact): bool => in_array($contact->getKey(), $keptIds, true))
+            ->sortBy(static fn (Contact $contact): int => $contact->is_primary ? 1 : 0);
+
+        foreach ($stale as $contact) {
+            $this->delete->execute($contact);
         }
 
         return $result;
