@@ -96,9 +96,10 @@ return [
     |
     | - ttl: how many minutes a generated token stays valid.
     | - style: "code" for a numeric one-time code, "token" for a random string.
-    | - code_length: number of digits when style is "code".
+    | - code_length: number of digits when style is "code" (1-72).
     | - token_length: number of bytes of randomness when style is "token"
-    |   (the token is hex-encoded, so the string is twice this length).
+    |   (the token is hex-encoded, so the string is twice this length; 1-36,
+    |   because bcrypt reads only the first 72 characters).
     | - max_attempts: wrong guesses a token survives; the guess that spends the
     |   last one voids it (VerificationAttemptsExceeded) and a new request is
     |   needed. Counted in the database, so parallel requests share the budget.

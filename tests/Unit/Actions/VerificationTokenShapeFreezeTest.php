@@ -168,7 +168,8 @@ it('freezes the numeric distribution against the pre-refactor generator', functi
 it('freezes the hex token shape: exactly twice token_length lowercase hex chars', function (): void {
     config()->set('contacts.verification.style', 'token');
 
-    foreach ([1, 4, 16, 32, 64] as $bytes) {
+    // Up to 36: bcrypt reads only the first 72 characters (TokenLengthTest pins the cap).
+    foreach ([1, 4, 16, 32, 36] as $bytes) {
         config()->set('contacts.verification.token_length', $bytes);
 
         $token = drawTokens(1)[0];
