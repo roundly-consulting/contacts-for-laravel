@@ -9,7 +9,8 @@ use RoundlyConsulting\Contacts\Models\Contact;
 
 /**
  * Soft-delete a contact. Deleting the primary promotes the next contact of its kind (by
- * position) while `contacts.auto_primary` is on, so the kind keeps a primary.
+ * position) while `contacts.auto_primary` is on, so the kind keeps a primary. An already
+ * deleted contact is left as it is.
  */
 final readonly class DeleteContactAction
 {
@@ -19,6 +20,10 @@ final readonly class DeleteContactAction
 
     public function execute(Contact $contact): void
     {
+        if ($contact->trashed()) {
+            return;
+        }
+
         $contact->delete();
 
         event(new ContactDeleted($contact));

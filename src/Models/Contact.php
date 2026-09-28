@@ -352,6 +352,10 @@ class Contact extends Model implements Addressable, Connectable
             }
         });
 
+        // Soft-deleting an already trashed contact is a no-op: re-stamping its deleted_at
+        // would lose the stamp restore() finds its addresses and connections by.
+        self::deleting(static fn (Contact $contact): ?bool => $contact->trashed() && ! $contact->isForceDeleting() ? false : null);
+
         // The structured address book and the relationship edges exist only for this
         // contact, so they follow it: trashed with a soft delete (and back with a restore),
         // gone with a force delete.
