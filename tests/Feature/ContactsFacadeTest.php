@@ -83,8 +83,11 @@ it('syncs an owner\'s contacts of one kind', function (): void {
         new ContactData(ContactType::Phone, '+421900000002'),
     ]);
 
+    // Ordered explicitly: without an ORDER BY, postgres returns rows in physical order, and
+    // promoting the first synced phone to primary rewrites (moves) its row.
     expect($result)->toHaveCount(2)
-        ->and($user->contacts()->pluck('value')->all())->toBe(['+421900000001', '+421900000002']);
+        ->and($user->contacts()->ordered()->pluck('value')->all())->toBe(['+421900000001', '+421900000002'])
+        ->and($user->primaryPhone()?->value)->toBe('+421900000001');
 });
 
 it('reads an owner\'s contacts, by kind and primary', function (): void {
