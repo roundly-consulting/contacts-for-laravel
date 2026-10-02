@@ -78,10 +78,15 @@ final readonly class SyncContactsAction
             ->reject(static fn (Contact $contact): bool => in_array($contact->getKey(), $keptIds, true))
             ->sortBy(static fn (Contact $contact): int => $contact->is_primary ? 1 : 0);
 
+        $promoted = false;
+
         foreach ($stale as $contact) {
             $this->delete->execute($contact);
+            $promoted = $promoted || $contact->is_primary;
         }
 
-        return $result;
+        // Deleting the primary promoted a synced contact in the database; hand back what
+        // is stored, not the copies taken before.
+        return $promoted ? $result->fresh() : $result;
     }
 }

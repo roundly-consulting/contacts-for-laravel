@@ -150,6 +150,19 @@ it('promotes the first synced item when the primary is synced away', function ()
         ->and(primariesOf($user, 'phone'))->toBe(1);
 });
 
+it('returns the promoted primary from sync, not a stale copy', function (): void {
+    $user = User::create();
+    $user->addPhone('+421900000001');
+
+    $synced = Contacts::for($user)->sync(ContactType::Phone, [
+        new ContactData(ContactType::Phone, '+421900000002'),
+        new ContactData(ContactType::Phone, '+421900000003'),
+    ]);
+
+    expect($synced->map(fn (Contact $contact): array => [$contact->value, $contact->is_primary])->all())
+        ->toBe([['+421900000002', true], ['+421900000003', false]]);
+});
+
 it('restores a deleted primary as a secondary once another was promoted', function (): void {
     $user = User::create();
     $primary = $user->addPhone('+421900000001');
