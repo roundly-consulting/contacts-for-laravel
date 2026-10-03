@@ -11,8 +11,9 @@ use RoundlyConsulting\PackageToolkit\Support\Config;
  * The strict readers behind every contacts setting that is not a switch or a plain bounded
  * integer read at its one call site.
  *
- * An absent (null) key means the documented default. A present value of the wrong shape
- * throws InvalidConfigurationException naming the key: a typo never falls back silently.
+ * A key that is not set (absent, null or blank: `''` or whitespace, a host's `KEY=`) means
+ * the documented default. A present value of the wrong shape throws
+ * InvalidConfigurationException naming the key: a typo never falls back silently.
  * That matters most for `verification.style`, where the old fallback turned a mistyped
  * `token` into the 6-digit numeric code — a quiet downgrade from 32 random bytes.
  *
@@ -35,15 +36,15 @@ final class ContactsConfig
     private const string TYPES = 'contacts.types';
 
     /**
-     * The configured table name, or null when none is configured (the model's own name).
+     * The configured table name, or null when none is set (the model's own name).
      */
     public static function table(): ?string
     {
-        return config('contacts.table') === null ? null : Config::requireString('contacts.table');
+        return self::isUnset(config('contacts.table')) ? null : Config::requireString('contacts.table');
     }
 
     /**
-     * `code` or `token`; absent means `code`.
+     * `code` or `token`; not set means `code`.
      */
     public static function verificationStyle(): string
     {
@@ -51,7 +52,7 @@ final class ContactsConfig
     }
 
     /**
-     * Minutes a verification token stays valid: 1 to a year, 60 when absent.
+     * Minutes a verification token stays valid: 1 to a year, 60 when not set.
      */
     public static function verificationTtl(): int
     {
@@ -59,7 +60,7 @@ final class ContactsConfig
     }
 
     /**
-     * Wrong guesses a verification token survives: 1–1000, 5 when absent.
+     * Wrong guesses a verification token survives: 1–1000, 5 when not set.
      */
     public static function verificationMaxAttempts(): int
     {
@@ -67,7 +68,7 @@ final class ContactsConfig
     }
 
     /**
-     * The digits of the default dialling prefix, or null when none is set (absent or empty).
+     * The digits of the default dialling prefix, or null when none is set (absent, null or blank).
      *
      * A prefix may be written `421`, `+421` or `1-264`; anything else — letters, an ISO code
      * such as `SK`, a leading zero, more than four digits — throws.
@@ -76,7 +77,7 @@ final class ContactsConfig
     {
         $value = config('contacts.default_country_code');
 
-        if ($value === null || (is_string($value) && trim($value) === '')) {
+        if (self::isUnset($value)) {
             return null;
         }
 
@@ -95,8 +96,8 @@ final class ContactsConfig
 
     /**
      * The `contacts.types` registry, validated: a map of kind => definition, each definition an
-     * array whose optional `label` and `icon` are non-empty strings and whose optional `rules`
-     * is a list of rule strings. Absent means no registered kinds.
+     * array whose optional `label` and `icon` are strings (blank = not set, the kind's own) and
+     * whose optional `rules` is a list of rule strings. Not set means no registered kinds.
      *
      * @return array<string, array<string, mixed>>
      */
@@ -104,7 +105,7 @@ final class ContactsConfig
     {
         $types = config(self::TYPES);
 
-        if ($types === null) {
+        if (self::isUnset($types)) {
             return [];
         }
 
@@ -136,7 +137,7 @@ final class ContactsConfig
     }
 
     /**
-     * The relationship allow-list: a list of kinds or a kind => label map. Absent or empty
+     * The relationship allow-list: a list of kinds or a kind => label map. Not set or empty
      * keeps kinds free-form.
      *
      * @return array<array-key, mixed>
@@ -145,7 +146,7 @@ final class ContactsConfig
     {
         $kinds = config('contacts.relationship_kinds');
 
-        if ($kinds === null) {
+        if (self::isUnset($kinds)) {
             return [];
         }
 
@@ -168,7 +169,9 @@ final class ContactsConfig
         foreach (['label', 'icon'] as $field) {
             $value = $definition[$field] ?? null;
 
-            if ($value !== null && (! is_string($value) || trim($value) === '')) {
+            if (self::isUnset($value)) {
+                unset($definition[$field]);
+            } elseif (! is_string($value)) {
                 throw InvalidConfigurationException::notAString($key.'.'.$field, $value);
             }
         }
@@ -181,6 +184,14 @@ final class ContactsConfig
 
         /** @var array<string, mixed> $definition */
         return $definition;
+    }
+
+    /**
+     * Not set: null or blank (`''` or whitespace, a host's `KEY=`), read exactly like absent.
+     */
+    private static function isUnset(mixed $value): bool
+    {
+        return $value === null || (is_string($value) && trim($value) === '');
     }
 
     private static function mustBe(string $key, string $expectation, mixed $value): InvalidConfigurationException

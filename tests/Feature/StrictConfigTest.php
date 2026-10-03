@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
 use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
@@ -85,15 +86,15 @@ it('refuses a mistyped verification style instead of issuing a code (strict conf
     expect(fn () => $contact->requestVerification())
         ->toThrow(InvalidConfigurationException::class, 'contacts.verification.style')
         ->and($contact->fresh()?->verification_token)->toBeNull();
-})->with(['typo' => 'tokn', 'wrong case' => 'Token', 'blank' => '', 'not a string' => 1]);
+})->with(['typo' => 'tokn', 'wrong case' => 'Token', 'not a string' => 1]);
 
-it('issues a numeric code when the verification style is absent (strict config)', function (): void {
-    config()->set('contacts.verification.style', null);
+it('issues a numeric code when the verification style is not set (strict config)', function (?string $style): void {
+    config()->set('contacts.verification.style', $style);
 
     $plain = User::create()->addEmail('absent@acme.test')->requestVerification();
 
     expect($plain)->toMatch('/^\d{6}$/');
-});
+})->with(['absent' => null, 'blank' => '', 'whitespace' => '  ']);
 
 it('refuses a junk or non-positive verification ttl (strict config)', function (mixed $ttl): void {
     config()->set('contacts.verification.ttl', $ttl);
@@ -103,16 +104,16 @@ it('refuses a junk or non-positive verification ttl (strict config)', function (
     expect(fn () => $contact->requestVerification())
         ->toThrow(InvalidConfigurationException::class, 'contacts.verification.ttl')
         ->and($contact->fresh()?->verification_token)->toBeNull();
-})->with(['word' => 'five', 'decimal' => '5.5', 'blank' => '', 'zero' => '0', 'negative' => -1, 'over a year' => 525_601]);
+})->with(['word' => 'five', 'decimal' => '5.5', 'zero' => '0', 'negative' => -1, 'over a year' => 525_601]);
 
-it('reads a canonical ttl string and defaults an absent one to 60 minutes (strict config)', function (): void {
+it('reads a canonical ttl string and defaults an unset one to 60 minutes (strict config)', function (?string $unset): void {
     Carbon::setTestNow('2026-10-03 12:00:00');
 
     config()->set('contacts.verification.ttl', ' 30 ');
     $short = User::create()->addEmail('short@acme.test');
     $short->requestVerification();
 
-    config()->set('contacts.verification.ttl', null);
+    config()->set('contacts.verification.ttl', $unset);
     $default = User::create()->addEmail('default@acme.test');
     $default->requestVerification();
 
@@ -120,14 +121,20 @@ it('reads a canonical ttl string and defaults an absent one to 60 minutes (stric
         ->and($default->fresh()?->verification_expires_at?->toDateTimeString())->toBe('2026-10-03 13:00:00');
 
     Carbon::setTestNow();
-});
+})->with(['absent' => null, 'blank' => '', 'whitespace' => ' ']);
 
-it('refuses a non-string or blank table name (strict config)', function (mixed $table): void {
+it('refuses a non-string table name (strict config)', function (mixed $table): void {
     config()->set('contacts.table', $table);
 
     expect(fn () => (new Contact)->getTable())
         ->toThrow(InvalidConfigurationException::class, 'contacts.table');
-})->with(['array' => [['contacts']], 'blank' => '', 'whitespace' => '  ', 'integer' => 42]);
+})->with(['array' => [['contacts']], 'integer' => 42]);
+
+it('uses the contacts table when no table name is set (strict config)', function (?string $table): void {
+    config()->set('contacts.table', $table);
+
+    expect((new Contact)->getTable())->toBe('contacts');
+})->with(['absent' => null, 'blank' => '', 'whitespace' => '  ']);
 
 it('refuses a mistyped default country code (strict config)', function (mixed $code): void {
     config()->set('contacts.default_country_code', $code);
@@ -145,11 +152,11 @@ it('refuses a mistyped default country code (strict config)', function (mixed $c
     'array' => [['421']],
 ]);
 
-it('reads an empty default country code as none (strict config)', function (): void {
-    config()->set('contacts.default_country_code', '');
+it('reads an unset default country code as none (strict config)', function (?string $code): void {
+    config()->set('contacts.default_country_code', $code);
 
     expect(ContactType::Phone->normalize('0900 123 456'))->toBe('0900123456');
-});
+})->with(['absent' => null, 'blank' => '', 'whitespace' => ' ']);
 
 it('refuses a types registry that is not a kind map (strict config)', function (mixed $types): void {
     config()->set('contacts.types', $types);
@@ -166,7 +173,7 @@ it('refuses a types registry that is not a kind map (strict config)', function (
     'a blank kind' => [['' => ['label' => 'Blank']]],
     'a non-array definition' => [['whatsapp' => 'WhatsApp']],
     'a non-string label' => [['whatsapp' => ['label' => 42]]],
-    'a blank icon' => [['whatsapp' => ['icon' => ' ']]],
+    'a non-string icon' => [['whatsapp' => ['icon' => 42]]],
     'rules as a string' => [['whatsapp' => ['rules' => 'required|string']]],
     'a non-string rule' => [['whatsapp' => ['rules' => ['required', 5]]]],
 ]);
@@ -202,13 +209,43 @@ it('keeps the about section rendering on a malformed host config (strict config)
     );
 });
 
-it('reads absent registries as empty and free-form (strict config)', function (): void {
-    config()->set('contacts.types', null);
-    config()->set('contacts.relationship_kinds', null);
+it('reads unset registries as empty and free-form (strict config)', function (?string $unset): void {
+    config()->set('contacts.types', $unset);
+    config()->set('contacts.relationship_kinds', $unset);
 
     $person = Contact::factory()->create();
     $person->relateTo(Contact::factory()->create(), 'anything_goes');
 
     expect(ContactRules::kinds())->toBe(array_map(static fn (ContactType $type): string => $type->value, ContactType::cases()))
         ->and($person->relationsOfKind('anything_goes'))->toHaveCount(1);
+})->with(['absent' => null, 'blank' => '', 'whitespace' => ' ']);
+
+it('reads a blank kind label or icon as not set, keeping the built-in one (strict config)', function (string $blank): void {
+    config()->set('contacts.types', ['email' => ['label' => $blank, 'icon' => $blank], 'whatsapp' => ['label' => $blank, 'icon' => $blank]]);
+
+    expect(ContactType::Email->label())->toBe('Email')
+        ->and(ContactType::Email->icon())->toBe('envelope')
+        ->and(ContactKind::label(ContactType::Custom, 'whatsapp'))->toBe(ContactType::Custom->label())
+        ->and(ContactKind::icon(ContactType::Custom, 'whatsapp'))->toBe('identification')
+        ->and(ContactRules::kinds())->toContain('whatsapp');
+})->with(['blank' => '', 'whitespace' => '  ']);
+
+it('migrates the contacts table when no table name is set (strict config)', function (?string $table): void {
+    config()->set('contacts.table', $table);
+
+    Schema::dropIfExists('contacts');
+
+    $migration = require __DIR__.'/../../database/migrations/create_contacts_table.php';
+    $migration->up();
+
+    expect(Schema::hasTable('contacts'))->toBeTrue();
+})->with(['absent' => null, 'blank' => '', 'whitespace' => ' ']);
+
+it('refuses to migrate on a non-string table name (strict config)', function (): void {
+    config()->set('contacts.table', 42);
+
+    expect(function (): void {
+        $migration = require __DIR__.'/../../database/migrations/create_contacts_table.php';
+        $migration->up();
+    })->toThrow(InvalidConfigurationException::class, 'contacts.table');
 });

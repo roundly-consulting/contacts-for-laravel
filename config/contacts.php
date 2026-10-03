@@ -79,8 +79,8 @@ return [
     | Best-effort dialling prefix for phone numbers entered in national format
     | (no leading "+" or "00"): "0900 123 456" becomes "+421900123456" — the
     | trunk 0 is dropped, except for Italy/San Marino, where it is part of the
-    | number. A leading "00" is always read as "+". Leave null (or empty) to
-    | store the bare digits of a national number. Example: "421" or "+421";
+    | number. A leading "00" is always read as "+". Leave it unset (null or
+    | blank) to store the bare digits of a national number. Example: "421" or "+421";
     | anything that is not a 1-4 digit dialling code throws.
     |
     */
@@ -106,6 +106,9 @@ return [
     | - max_attempts: wrong guesses a token survives; the guess that spends the
     |   last one voids it (VerificationAttemptsExceeded) and a new request is
     |   needed. Counted in the database, so parallel requests share the budget.
+    |
+    | A blank value (a bare "CONTACTS_VERIFICATION_TTL=") is not set and takes
+    | the default above; junk such as "five" or "5.5" throws.
     |
     */
 

@@ -87,26 +87,27 @@ return [
 | Key | Type | Default | Purpose |
 |-----|------|---------|---------|
 | `model` | `class-string` | `Contact::class` | Model the `HasContacts` trait resolves for the `contacts()` relationship. |
-| `table` | `string` | `contacts` | Database table contacts are stored in. Must be a non-empty string when set. |
+| `table` | `string` | `contacts` | Database table contacts are stored in. Blank = not set (`contacts`); any other value must be a string. |
 | `key_type` | `string` | `bigint` (`CONTACTS_KEY_TYPE`) | Key type of the polymorphic `owner` column: `bigint`, `uuid` or `ulid` (anything else throws `InvalidConfigurationException`). Read when the migration runs, so set it before migrating. |
 | `auto_primary` | `bool` | `true` | When set, the first contact of a kind added for an owner becomes its primary, and when the primary leaves a kind (deleted, synced away, moved to another kind) the next contact by position takes over. |
 | `require_owner_for_primary` | `bool` | `false` | When set, only owned contacts may be primary; otherwise a `PrimaryContactConflict` is thrown. |
-| `default_country_code` | `?string` | `env('CONTACTS_DEFAULT_COUNTRY_CODE')` | Best-effort dialling prefix for phone numbers entered in national format (see [Contact kinds](#contact-kinds)). Written `421`, `+421` or `1-264` (1–4 digits, no leading zero); null or empty means none. |
+| `default_country_code` | `?string` | `env('CONTACTS_DEFAULT_COUNTRY_CODE')` | Best-effort dialling prefix for phone numbers entered in national format (see [Contact kinds](#contact-kinds)). Written `421`, `+421` or `1-264` (1–4 digits, no leading zero); not set (null or blank) means none. |
 | `verification.ttl` | `int` | `60` (`CONTACTS_VERIFICATION_TTL`) | Minutes a verification token stays valid, 1–525600 (a year). |
 | `verification.style` | `string` | `code` (`CONTACTS_VERIFICATION_STYLE`) | `code` for a numeric one-time code, `token` for a random hex string. Exact and lower-case: anything else throws, so a typo never downgrades a token to a 6-digit code. |
 | `verification.code_length` | `int` | `6` (`CONTACTS_VERIFICATION_CODE_LENGTH`) | Number of digits when style is `code`, 1–72. |
 | `verification.token_length` | `int` | `32` (`CONTACTS_VERIFICATION_TOKEN_LENGTH`) | Bytes of randomness when style is `token`, 1–36 (hex-encoded, so the string is twice this; bcrypt reads only the first 72 characters). |
 | `verification.max_attempts` | `int` | `5` (`CONTACTS_VERIFICATION_MAX_ATTEMPTS`) | Wrong guesses a token survives, 1–1000. The guess that spends the last one voids the token. |
-| `types` | `array` | `[]` | Register custom kinds and override the label/icon/rules of built-in kinds. A `kind => definition` map; `label`/`icon` are non-empty strings and `rules` a list of rule strings. |
+| `types` | `array` | `[]` | Register custom kinds and override the label/icon/rules of built-in kinds. A `kind => definition` map; `label`/`icon` are strings (blank = not set, the kind's own) and `rules` a list of rule strings. |
 | `relationship_kinds` | `array` | `[]` | Allow-list for the typed relationship helpers (`relateTo`/`relationsOfKind`). Empty = free-form; a list or `kind => label` map restricts kinds. |
 
 The two switches accept env-style strings (`'true'`/`'false'`, `'1'`/`'0'`, `'on'`/`'off'`,
-`'yes'`/`'no'`), and the numeric keys accept integer strings (`'30'`). A key that is absent or
-`null` takes its default. Anything else — a mistyped switch or style, a TTL, length or attempt
-count that is not a whole number (`'five'`, `'5.5'`, `''`) or is out of range, a blank or
-non-string table, a country code that isn't one, a malformed `types` or `relationship_kinds`
-entry — throws an `InvalidConfigurationException` naming the key, rather than being read as a
-default or clamped. `php artisan about` shows such a value as `INVALID`.
+`'yes'`/`'no'`), and the numeric keys accept integer strings (`'30'`). A key that is not set
+(absent, `null`, or blank: `''` or whitespace, as a bare `CONTACTS_VERIFICATION_TTL=` line
+gives) takes its default. Anything else — a mistyped switch or style, a TTL, length or attempt
+count that is not a whole number (`'five'`, `'5.5'`) or is out of range, a non-string table, a
+country code that isn't one, a malformed `types` or `relationship_kinds` entry — throws an
+`InvalidConfigurationException` naming the key, rather than being read as a default or
+clamped. `php artisan about` shows such a value as `INVALID`.
 
 ## Contact kinds
 

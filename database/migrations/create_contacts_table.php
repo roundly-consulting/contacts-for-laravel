@@ -5,15 +5,15 @@ declare(strict_types=1);
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use RoundlyConsulting\Contacts\Support\ContactsConfig;
 use RoundlyConsulting\PackageToolkit\Enums\KeyType;
-use RoundlyConsulting\PackageToolkit\Support\Config;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        // Absent means the conventional name; anything present must be a non-empty string.
-        $table = config('contacts.table') === null ? 'contacts' : Config::requireString('contacts.table');
+        // Not set (absent, null or blank) means the conventional name; anything else must be a string.
+        $table = ContactsConfig::table() ?? 'contacts';
 
         $keyType = KeyType::fromConfig('contacts.key_type');
 
