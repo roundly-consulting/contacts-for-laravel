@@ -71,9 +71,9 @@ return [
     'verification' => [
         'ttl' => (int) env('CONTACTS_VERIFICATION_TTL', 60),
         'style' => env('CONTACTS_VERIFICATION_STYLE', 'code'),
-        'code_length' => (int) env('CONTACTS_VERIFICATION_CODE_LENGTH', 6),
-        'token_length' => (int) env('CONTACTS_VERIFICATION_TOKEN_LENGTH', 32),
-        'max_attempts' => (int) env('CONTACTS_VERIFICATION_MAX_ATTEMPTS', 5),
+        'code_length' => env('CONTACTS_VERIFICATION_CODE_LENGTH', 6),
+        'token_length' => env('CONTACTS_VERIFICATION_TOKEN_LENGTH', 32),
+        'max_attempts' => env('CONTACTS_VERIFICATION_MAX_ATTEMPTS', 5),
     ],
     'types' => [
         // 'whatsapp' => ['label' => 'WhatsApp', 'icon' => 'chat', 'rules' => ['required', 'string']],
@@ -88,7 +88,7 @@ return [
 |-----|------|---------|---------|
 | `model` | `class-string` | `Contact::class` | Model the `HasContacts` trait resolves for the `contacts()` relationship. |
 | `table` | `string` | `contacts` | Database table contacts are stored in. |
-| `key_type` | `string` | `bigint` (`CONTACTS_KEY_TYPE`) | Key type of the polymorphic `owner` column: `bigint`, `uuid` or `ulid` (anything else falls back to `bigint`). Read when the migration runs, so set it before migrating. |
+| `key_type` | `string` | `bigint` (`CONTACTS_KEY_TYPE`) | Key type of the polymorphic `owner` column: `bigint`, `uuid` or `ulid` (anything else throws `InvalidConfigurationException`). Read when the migration runs, so set it before migrating. |
 | `auto_primary` | `bool` | `true` | When set, the first contact of a kind added for an owner becomes its primary, and when the primary leaves a kind (deleted, synced away, moved to another kind) the next contact by position takes over. |
 | `require_owner_for_primary` | `bool` | `false` | When set, only owned contacts may be primary; otherwise a `PrimaryContactConflict` is thrown. |
 | `default_country_code` | `?string` | `env('CONTACTS_DEFAULT_COUNTRY_CODE')` | Best-effort dialling prefix for phone numbers entered in national format (see [Contact kinds](#contact-kinds)). |
@@ -100,9 +100,10 @@ return [
 | `types` | `array` | `[]` | Register custom kinds and override the label/icon/rules of built-in kinds. |
 | `relationship_kinds` | `array` | `[]` | Allow-list for the typed relationship helpers (`relateTo`/`relationsOfKind`). Empty = free-form; a list or `kind => label` map restricts kinds. |
 
-The two switches accept env-style strings (`'true'`/`'false'`, `'1'`/`'0'`, `'on'`/`'off'`), and
-the numeric keys accept numeric strings. An out-of-range length or attempt count throws an
-`InvalidConfigurationException` rather than being clamped.
+The two switches accept env-style strings (`'true'`/`'false'`, `'1'`/`'0'`, `'on'`/`'off'`,
+`'yes'`/`'no'`), and the numeric keys accept integer strings. Anything else — a mistyped switch, a
+length or attempt count that is not a whole number or is out of range — throws an
+`InvalidConfigurationException` rather than being read as a default or clamped.
 
 ## Contact kinds
 
