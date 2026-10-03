@@ -61,11 +61,11 @@ final readonly class RequestContactVerificationAction
         $style = config('contacts.verification.style', 'code');
 
         if ($style === 'token') {
-            $bytes = Config::intBetween('contacts.verification.token_length', 1, intdiv(self::BCRYPT_INPUT_LIMIT, 2), 32);
+            $bytes = Config::integer('contacts.verification.token_length', 32, min: 1, max: intdiv(self::BCRYPT_INPUT_LIMIT, 2));
 
             return Hex::encode(Bytes::generate($bytes));
         }
 
-        return Token::numeric(Config::intBetween('contacts.verification.code_length', 1, self::BCRYPT_INPUT_LIMIT, 6));
+        return Token::numeric(Config::integer('contacts.verification.code_length', 6, min: 1, max: self::BCRYPT_INPUT_LIMIT));
     }
 }

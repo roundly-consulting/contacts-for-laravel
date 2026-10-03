@@ -7,7 +7,7 @@ use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
 /*
  | A typo in a host's env must fail loudly, never quietly become a number. The verification
- | lengths and attempt budget are read through the toolkit's strict `Config::intBetween()`,
+ | lengths and attempt budget are read through the toolkit's strict `Config::integer()`,
  | but an `(int)` cast in the config file used to turn `=abc` into `0` and `=1.5` into `1`
  | before the reader ever saw it. The file now hands the raw string through.
  */

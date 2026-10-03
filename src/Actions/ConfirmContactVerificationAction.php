@@ -53,7 +53,7 @@ final readonly class ConfirmContactVerificationAction
             throw VerificationExpired::make();
         }
 
-        $maxAttempts = Config::intBetween('contacts.verification.max_attempts', 1, 1000, 5);
+        $maxAttempts = Config::integer('contacts.verification.max_attempts', 5, min: 1, max: 1000);
 
         $reserved = $this->current($contact, $hash)
             ->where('verification_attempts', '<', $maxAttempts)
