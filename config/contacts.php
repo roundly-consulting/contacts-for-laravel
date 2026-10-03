@@ -37,8 +37,9 @@ return [
     |
     | The key type used for the polymorphic owner column. Use "uuid" or "ulid"
     | when the owner models use UUID/ULID primary keys, otherwise leave it as
-    | "bigint". Any unrecognized value falls back to "bigint". It is fixed when
-    | the migration first runs, so choose it before publishing the migrations.
+    | "bigint". Any other value throws an InvalidConfigurationException when
+    | the migration runs. It is fixed when the migration first runs, so choose
+    | it before publishing the migrations.
     |
     | Supported: "bigint", "uuid", "ulid"
     |
@@ -109,9 +110,9 @@ return [
     'verification' => [
         'ttl' => (int) env('CONTACTS_VERIFICATION_TTL', 60),
         'style' => env('CONTACTS_VERIFICATION_STYLE', 'code'),
-        'code_length' => (int) env('CONTACTS_VERIFICATION_CODE_LENGTH', 6),
-        'token_length' => (int) env('CONTACTS_VERIFICATION_TOKEN_LENGTH', 32),
-        'max_attempts' => (int) env('CONTACTS_VERIFICATION_MAX_ATTEMPTS', 5),
+        'code_length' => env('CONTACTS_VERIFICATION_CODE_LENGTH', 6),
+        'token_length' => env('CONTACTS_VERIFICATION_TOKEN_LENGTH', 32),
+        'max_attempts' => env('CONTACTS_VERIFICATION_MAX_ATTEMPTS', 5),
     ],
 
     /*
