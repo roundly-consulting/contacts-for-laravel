@@ -11,6 +11,7 @@ use RoundlyConsulting\Connections\Models\Connection;
 use RoundlyConsulting\Contacts\Exceptions\RelationshipException;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Support\ContactModel;
+use RoundlyConsulting\Contacts\Support\ContactsConfig;
 
 /**
  * Typed, CRM-flavoured sugar over the connections graph. Maps a free-form
@@ -75,9 +76,9 @@ trait HasContactRelations
      */
     private static function assertRelationshipKind(string $kind): void
     {
-        $configured = config('contacts.relationship_kinds', []);
+        $configured = ContactsConfig::relationshipKinds();
 
-        if (! is_array($configured) || $configured === []) {
+        if ($configured === []) {
             return;
         }
 

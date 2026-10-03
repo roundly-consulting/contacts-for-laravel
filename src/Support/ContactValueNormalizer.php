@@ -79,15 +79,7 @@ final class ContactValueNormalizer
 
     private static function defaultCountryCode(): ?string
     {
-        $configured = config('contacts.default_country_code');
-
-        if (! is_string($configured) && ! is_int($configured)) {
-            return null;
-        }
-
-        $code = preg_replace('/\D+/', '', (string) $configured) ?? '';
-
-        return $code === '' ? null : $code;
+        return ContactsConfig::defaultCountryCode();
     }
 
     private static function normalizeUrl(string $value): string

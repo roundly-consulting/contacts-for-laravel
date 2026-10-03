@@ -6,6 +6,7 @@ namespace RoundlyConsulting\Contacts\Support;
 
 use RoundlyConsulting\Addresses\Address;
 use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
+use RoundlyConsulting\Addresses\Support\AddressModel;
 use RoundlyConsulting\Contacts\Models\Contact;
 
 /**
@@ -21,8 +22,7 @@ final class ContactAddressFormatter
      */
     public static function fromData(AddressData $data): string
     {
-        /** @var class-string<Address> $model */
-        $model = config('addresses.model', Address::class);
+        $model = AddressModel::class();
 
         return (new $model($data->toAttributes()))->formatted();
     }

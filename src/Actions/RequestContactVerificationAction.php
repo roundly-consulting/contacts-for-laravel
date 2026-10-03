@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use RoundlyConsulting\Contacts\Events\ContactVerificationRequested;
 use RoundlyConsulting\Contacts\Models\Contact;
+use RoundlyConsulting\Contacts\Support\ContactsConfig;
 use RoundlyConsulting\Crypto\Codec\Hex;
 use RoundlyConsulting\Crypto\Random\Bytes;
 use RoundlyConsulting\Crypto\Random\Token;
@@ -29,10 +30,10 @@ final readonly class RequestContactVerificationAction
     {
         $plain = $this->generateToken();
 
-        $ttl = (int) config('contacts.verification.ttl', 60);
+        $ttl = ContactsConfig::verificationTtl();
 
         $contact->verification_token = Hash::make($plain);
-        $contact->verification_expires_at = Carbon::now()->addMinutes(max(1, $ttl));
+        $contact->verification_expires_at = Carbon::now()->addMinutes($ttl);
         // A fresh token gets a fresh wrong-guess budget; the old token is gone with it.
         $contact->verification_attempts = 0;
         $contact->save();
@@ -48,7 +49,8 @@ final readonly class RequestContactVerificationAction
      *
      * Both lengths must fit the hash: bcrypt reads only the first 72 bytes of its input, so
      * a longer token would be checked only in part (36 bytes hex-encode to 72 characters).
-     * A length outside its range fails loudly rather than being silently clamped.
+     * A length outside its range fails loudly rather than being silently clamped, and so does
+     * a style that is neither `code` nor `token`: a typo never downgrades a token to a code.
      *
      * `Token::numeric()` draws each digit uniformly rather than one integer in
      * [0, 10^n - 1]. That is the same distribution over the same n-digit space — including
@@ -58,9 +60,7 @@ final readonly class RequestContactVerificationAction
      */
     private function generateToken(): string
     {
-        $style = config('contacts.verification.style', 'code');
-
-        if ($style === 'token') {
+        if (ContactsConfig::verificationStyle() === ContactsConfig::STYLE_TOKEN) {
             $bytes = Config::integer('contacts.verification.token_length', 32, min: 1, max: intdiv(self::BCRYPT_INPUT_LIMIT, 2));
 
             return Hex::encode(Bytes::generate($bytes));

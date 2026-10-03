@@ -24,6 +24,7 @@ use RoundlyConsulting\Contacts\ContactsManager;
 use RoundlyConsulting\Contacts\Database\Factories\ContactFactory;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Support\ContactKind;
+use RoundlyConsulting\Contacts\Support\ContactsConfig;
 use RoundlyConsulting\Contacts\Support\KindGroup;
 use RoundlyConsulting\Contacts\Support\VCardExporter;
 use SensitiveParameter;
@@ -423,13 +424,7 @@ class Contact extends Model implements Addressable, Connectable
             return $this->table;
         }
 
-        $configured = config('contacts.table');
-
-        if (is_string($configured) && $configured !== '') {
-            return $configured;
-        }
-
-        return parent::getTable();
+        return ContactsConfig::table() ?? parent::getTable();
     }
 
     /**

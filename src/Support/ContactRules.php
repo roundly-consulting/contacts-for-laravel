@@ -56,9 +56,7 @@ final class ContactRules
     {
         $builtIn = array_map(static fn (ContactType $type): string => $type->value, ContactType::cases());
 
-        $configured = config('contacts.types');
-        $custom = is_array($configured) ? array_keys($configured) : [];
-        $custom = array_values(array_filter($custom, 'is_string'));
+        $custom = array_keys(ContactsConfig::types());
 
         return array_values(array_unique([...$builtIn, ...$custom]));
     }

@@ -30,15 +30,7 @@ final class ContactKind
      */
     public static function overrides(string $kind): array
     {
-        $types = config('contacts.types');
-
-        if (! is_array($types)) {
-            return [];
-        }
-
-        $configured = $types[$kind] ?? null;
-
-        return is_array($configured) ? $configured : [];
+        return ContactsConfig::type($kind);
     }
 
     /**
@@ -80,7 +72,7 @@ final class ContactKind
 
         if (is_array($configured) && $configured !== []) {
             /** @var list<string> $rules */
-            $rules = array_values(array_filter($configured, 'is_string'));
+            $rules = array_values($configured);
 
             return $rules;
         }

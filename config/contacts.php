@@ -79,8 +79,9 @@ return [
     | Best-effort dialling prefix for phone numbers entered in national format
     | (no leading "+" or "00"): "0900 123 456" becomes "+421900123456" — the
     | trunk 0 is dropped, except for Italy/San Marino, where it is part of the
-    | number. A leading "00" is always read as "+". Leave null to store the
-    | bare digits of a national number. Example: "421".
+    | number. A leading "00" is always read as "+". Leave null (or empty) to
+    | store the bare digits of a national number. Example: "421" or "+421";
+    | anything that is not a 1-4 digit dialling code throws.
     |
     */
 
@@ -95,8 +96,9 @@ return [
     | of the token is ever stored. Delivery is up to the host app, which
     | listens for the ContactVerificationRequested event.
     |
-    | - ttl: how many minutes a generated token stays valid.
+    | - ttl: how many minutes a generated token stays valid (1-525600).
     | - style: "code" for a numeric one-time code, "token" for a random string.
+    |   Anything else throws, so a typo never downgrades a token to a code.
     | - code_length: number of digits when style is "code" (1-72).
     | - token_length: number of bytes of randomness when style is "token"
     |   (the token is hex-encoded, so the string is twice this length; 1-36,
@@ -108,7 +110,7 @@ return [
     */
 
     'verification' => [
-        'ttl' => (int) env('CONTACTS_VERIFICATION_TTL', 60),
+        'ttl' => env('CONTACTS_VERIFICATION_TTL', 60),
         'style' => env('CONTACTS_VERIFICATION_STYLE', 'code'),
         'code_length' => env('CONTACTS_VERIFICATION_CODE_LENGTH', 6),
         'token_length' => env('CONTACTS_VERIFICATION_TOKEN_LENGTH', 32),

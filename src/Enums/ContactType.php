@@ -6,6 +6,7 @@ namespace RoundlyConsulting\Contacts\Enums;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use RoundlyConsulting\Contacts\Rules\ValidContactValue;
+use RoundlyConsulting\Contacts\Support\ContactsConfig;
 use RoundlyConsulting\Contacts\Support\ContactValueNormalizer;
 use RoundlyConsulting\Enums\Helpers;
 
@@ -40,31 +41,19 @@ enum ContactType: string
     /**
      * The `contacts.types.<kind>` overrides for this kind, or an empty array.
      *
-     * Reads the `contacts.types` registry as a whole and offsets into it in PHP,
-     * rather than interpolating the kind into the config key
-     * (`config('contacts.types.'.$this->value.'.label')`, as this enum used to do
-     * three times over).
-     *
-     * That is not a style preference. An interpolated key is unverifiable: the config
+     * Reads the `contacts.types` registry as a whole (through ContactsConfig, which
+     * validates it) and offsets into it in PHP, rather than interpolating the kind into
+     * the config key (`config('contacts.types.'.$this->value.'.label')`, as this enum
+     * used to do three times over). An interpolated key is unverifiable: the config
      * contract cannot tell whether `contacts.types.<something>.label` is a key the
-     * package ships or one it invented, so it flags the read rather than checking it —
-     * and a package whose config keys can't be checked is exactly where dead config
-     * hides. `contacts.types` is a host-extensible registry that ships empty, so the
-     * only key here the contract can meaningfully pin is the section itself. Now it can.
+     * package ships or one it invented. A malformed registry throws rather than being
+     * read as empty.
      *
      * @return array<string, mixed>
      */
     private function overrides(): array
     {
-        $types = config('contacts.types');
-
-        if (! is_array($types)) {
-            return [];
-        }
-
-        $configured = $types[$this->value] ?? null;
-
-        return is_array($configured) ? $configured : [];
+        return ContactsConfig::type($this->value);
     }
 
     /**
@@ -123,7 +112,7 @@ enum ContactType: string
 
         if (is_array($configured) && $configured !== []) {
             /** @var list<string> $rules */
-            $rules = array_values(array_filter($configured, 'is_string'));
+            $rules = array_values($configured);
 
             return $rules;
         }

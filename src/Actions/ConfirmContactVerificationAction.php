@@ -12,7 +12,7 @@ use RoundlyConsulting\Contacts\Exceptions\InvalidVerificationToken;
 use RoundlyConsulting\Contacts\Exceptions\VerificationAttemptsExceeded;
 use RoundlyConsulting\Contacts\Exceptions\VerificationExpired;
 use RoundlyConsulting\Contacts\Models\Contact;
-use RoundlyConsulting\PackageToolkit\Support\Config;
+use RoundlyConsulting\Contacts\Support\ContactsConfig;
 use SensitiveParameter;
 
 /**
@@ -53,7 +53,7 @@ final readonly class ConfirmContactVerificationAction
             throw VerificationExpired::make();
         }
 
-        $maxAttempts = Config::integer('contacts.verification.max_attempts', 5, min: 1, max: 1000);
+        $maxAttempts = ContactsConfig::verificationMaxAttempts();
 
         $reserved = $this->current($contact, $hash)
             ->where('verification_attempts', '<', $maxAttempts)
