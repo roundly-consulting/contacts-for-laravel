@@ -18,10 +18,14 @@ it('resolves a host model extending the packaged one', function (): void {
     expect(ContactModel::class())->toBe(CustomContact::class);
 });
 
-it('falls back to the packaged model when the configured model is not a contact', function (): void {
+it('refuses a foreign model instead of falling back to the packaged one', function (): void {
+    // The toolkit refuses any class that is not the packaged model or a subclass of it.
     config()->set('contacts.model', User::class);
 
-    expect(ContactModel::class())->toBe(Contact::class);
+    expect(fn (): string => ContactModel::class())->toThrow(
+        InvalidConfigurationException::class,
+        'Configuration value [contacts.model] must be a class-string of ['.Contact::class.'], ['.User::class.'] given.',
+    );
 });
 
 it('throws when the configured model is not an eloquent model', function (): void {

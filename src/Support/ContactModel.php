@@ -10,9 +10,9 @@ use RoundlyConsulting\PackageToolkit\Support\ModelResolver;
 /**
  * Resolves the Eloquent model backing contacts from `contacts.model`.
  *
- * The toolkit's ModelResolver validates that the configured value is a real
- * Eloquent model; anything that isn't a Contact (so it can't answer the
- * package's queries) falls back to the packaged model.
+ * Absent config resolves the packaged model; anything else must be that model or a subclass of
+ * it, or the toolkit's ModelResolver throws InvalidConfigurationException naming the key — a
+ * foreign class is never silently replaced.
  */
 final class ContactModel
 {
@@ -21,8 +21,6 @@ final class ContactModel
      */
     public static function class(): string
     {
-        $model = ModelResolver::for('contacts.model', Contact::class);
-
-        return is_a($model, Contact::class, true) ? $model : Contact::class;
+        return ModelResolver::for('contacts.model', Contact::class);
     }
 }
