@@ -79,9 +79,13 @@ return [
     | Best-effort dialling prefix for phone numbers entered in national format
     | (no leading "+" or "00"): "0900 123 456" becomes "+421900123456" — the
     | trunk 0 is dropped, except for Italy/San Marino, where it is part of the
-    | number. A leading "00" is always read as "+". Leave it unset (null or
-    | blank) to store the bare digits of a national number. Example: "421" or "+421";
+    | number. A leading "00" is always read as "+". Example: "421" or "+421";
     | anything that is not a 1-4 digit dialling code throws.
+    |
+    | Leave it unset (null or blank) and national numbers get no prefix: one
+    | with a trunk 0 ("0900 123 456") is rejected as an invalid phone, one
+    | without it ("900 123 456") is stored as its bare digits. Set the code, or
+    | have users enter "+421 …", to store numbers in international form.
     |
     */
 

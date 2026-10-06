@@ -41,7 +41,8 @@ final class ContactValueNormalizer
      * Best-effort E.164: separators stripped, a `(0)` trunk marker after `+cc` dropped,
      * the `00` international prefix read as `+`, and — with `default_country_code` set — a
      * national number's trunk `0` replaced by the country code. Without a `+`, a `00` or a
-     * configured country, the bare digits are kept.
+     * configured country, the bare digits are kept — trunk `0` included, which the phone
+     * rule then refuses (it allows no leading 0).
      */
     private static function normalizePhone(string $value): string
     {

@@ -6,6 +6,12 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+### Changed
+
+- Documentation: the `default_country_code` config comment now says what happens without a country
+  code — a national number with a trunk 0 (`0900 123 456`) is rejected as an invalid phone, one
+  without it is stored as its digits. Behaviour is unchanged.
+
 ### Fixed
 
 - A structured address given as an array (`structuredAddress([...])`,

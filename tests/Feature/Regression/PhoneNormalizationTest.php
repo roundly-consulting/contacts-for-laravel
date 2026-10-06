@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use RoundlyConsulting\Contacts\Enums\ContactType;
+use RoundlyConsulting\Contacts\Exceptions\InvalidContactValue;
 use RoundlyConsulting\Contacts\Tests\Models\User;
 
 /**
@@ -34,4 +35,20 @@ it('accepts the national formats through the trait', function (): void {
 
     expect($user->addPhone('0900 123 456')->value)->toBe('+421900123456')
         ->and($user->addPhone('00421 900 123 457')->value)->toBe('+421900123457');
+});
+
+/**
+ * Chat review C-12 pins the behaviour the config comment now describes. Without a
+ * `default_country_code`, a national number keeps its trunk 0 and the phone rule (no
+ * leading 0) refuses it — it is not stored as bare digits. A national number without the
+ * trunk 0 is stored as its digits; set the country code or enter `+cc` to store E.164.
+ */
+it('rejects a national number with a trunk 0 when no country code is set', function (): void {
+    config()->set('contacts.default_country_code', null);
+    $user = User::create();
+
+    expect(fn () => $user->addPhone('0900 123 456'))
+        ->toThrow(InvalidContactValue::class, 'not a valid phone contact')
+        ->and($user->addPhone('900 123 456')->value)->toBe('900123456')
+        ->and($user->addPhone('+421 900 123 457')->value)->toBe('+421900123457');
 });
