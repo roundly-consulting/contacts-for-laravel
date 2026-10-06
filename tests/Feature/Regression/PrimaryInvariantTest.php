@@ -208,3 +208,21 @@ it('promotes among owner-less contacts only', function (): void {
     expect($next->fresh()?->is_primary)->toBeTrue()
         ->and($owned->fresh()?->is_primary)->toBeTrue();
 });
+
+/**
+ * Chat review C-9: a later item flagged primary demoted an earlier synced contact in the
+ * database only — sync handed back both as primary.
+ */
+it('returns the stored primary from sync when a later item takes the flag', function (): void {
+    $user = User::create();
+    $user->addEmail('a@x.test');
+
+    $synced = Contacts::for($user)->sync(ContactType::Email, [
+        new ContactData(ContactType::Email, 'a@x.test'),
+        new ContactData(ContactType::Email, 'b@x.test', isPrimary: true),
+    ]);
+
+    expect($synced->map(fn (Contact $contact): array => [$contact->value, $contact->is_primary])->all())
+        ->toBe([['a@x.test', false], ['b@x.test', true]])
+        ->and(primariesOf($user, 'email'))->toBe(1);
+});

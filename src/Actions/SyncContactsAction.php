@@ -88,15 +88,17 @@ final readonly class SyncContactsAction
             ->reject(static fn (Contact $contact): bool => in_array($contact->getKey(), $keptIds, true))
             ->sortBy(static fn (Contact $contact): int => $contact->is_primary ? 1 : 0);
 
-        $promoted = false;
+        // A primary flag on an item demotes whichever contact held the primary before —
+        // possibly one synced earlier in this loop, whose copy above still says primary.
+        $primaryMoved = array_any($items, static fn (ContactData $item): bool => $item->isPrimary);
 
         foreach ($stale as $contact) {
             $this->delete->execute($contact);
-            $promoted = $promoted || $contact->is_primary;
+            $primaryMoved = $primaryMoved || $contact->is_primary;
         }
 
-        // Deleting the primary promoted a synced contact in the database; hand back what
-        // is stored, not the copies taken before.
-        return $promoted ? $result->fresh() : $result;
+        // Deleting the primary promoted a synced contact in the database, or a flagged item
+        // demoted an earlier one; hand back what is stored, not the copies taken before.
+        return $primaryMoved ? $result->fresh() : $result;
     }
 }
