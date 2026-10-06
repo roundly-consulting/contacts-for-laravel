@@ -112,3 +112,27 @@ it('cleans up attached addresses when the contact is deleted', function (): void
 
     expect($contact->addresses()->count())->toBe(0);
 });
+
+/**
+ * Chat review V-1 (owner answer #36): the structured address `add()` attaches is the
+ * contact's own address, so it is attached as its primary — `primaryAddress()` finds it and
+ * `formattedAddress()` renders it, edits included, instead of a stale mirrored `value`.
+ */
+it('attaches the structured address as the contact\'s primary address', function (): void {
+    $user = User::create(['name' => 'Acme']);
+
+    $built = Contacts::for($user)->structuredAddress([
+        'city' => 'Vienna',
+        'street' => 'Ring 3',
+        'postalCode' => '1010',
+        'countryIso' => 'AT',
+    ])->add();
+    $helper = $user->addStructuredAddress(AddressData::make(city: 'Kosice', street: 'Mlynska 2', postalCode: '04001', countryIso: 'SK'));
+
+    expect($built->primaryAddress()?->city)->toBe('Vienna')
+        ->and($helper->primaryAddress()?->city)->toBe('Kosice');
+
+    $built->primaryAddress()?->update(['street' => 'Moved 5']);
+
+    expect($built->formattedAddress())->toContain('Moved 5');
+});

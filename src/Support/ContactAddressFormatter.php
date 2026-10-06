@@ -30,10 +30,13 @@ final class ContactAddressFormatter
     /**
      * Attach a structured Address to the contact and mirror its one-line render
      * onto the contact's `value` so existing readers keep working.
+     *
+     * The address is the contact's own, so it is attached as its primary whatever the
+     * data's flag says: `primaryAddress()` finds it and `formattedAddress()` renders it.
      */
     public static function attach(Contact $contact, AddressData $data): Address
     {
-        $address = $contact->addAddress($data);
+        $address = $contact->addAddress(self::asPrimary($data));
 
         $formatted = $address->formatted();
 
@@ -42,5 +45,22 @@ final class ContactAddressFormatter
         }
 
         return $address;
+    }
+
+    /**
+     * The same address, flagged primary.
+     */
+    private static function asPrimary(AddressData $data): AddressData
+    {
+        return $data->isPrimary ? $data : new AddressData(
+            city: $data->city,
+            street: $data->street,
+            postalCode: $data->postalCode,
+            countryIso: $data->countryIso,
+            name: $data->name,
+            type: $data->type,
+            isPrimary: true,
+            meta: $data->meta,
+        );
     }
 }

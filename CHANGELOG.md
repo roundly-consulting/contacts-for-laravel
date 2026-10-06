@@ -17,6 +17,10 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 - Documentation: the `default_country_code` config comment now says what happens without a country
   code — a national number with a trunk 0 (`0900 123 456`) is rejected as an invalid phone, one
   without it is stored as its digits. Behaviour is unchanged.
+- The structured address `add()` attaches (`structuredAddress()`, `addStructuredAddress()`,
+  `ContactData::$address`) is now the contact's primary `Address`, so `primaryAddress()` finds it
+  and `formattedAddress()` renders it — later edits to the address included — instead of falling
+  back to the mirrored `value`.
 
 ### Deprecated
 
