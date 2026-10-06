@@ -17,7 +17,7 @@ final class AddressDataFactory
     /**
      * A missing or unrecognised `type` is passed on as null, so the address takes the
      * host's `addresses.default_type` exactly as one created through the addresses
-     * package would.
+     * package would. An array `meta` becomes the Collection the addresses DTO takes.
      *
      * @param  array<string, mixed>  $attributes
      */
@@ -30,6 +30,10 @@ final class AddressDataFactory
         }
 
         $meta = $attributes['meta'] ?? null;
+
+        if (is_array($meta)) {
+            $meta = collect($meta);
+        }
 
         return AddressData::make(
             city: self::string($attributes, 'city'),

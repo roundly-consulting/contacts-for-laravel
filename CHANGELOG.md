@@ -6,6 +6,11 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+### Fixed
+
+- A structured address given as an array (`structuredAddress([...])`,
+  `ContactData::fromArray(['address' => [...]])`) keeps its `meta` array instead of dropping it.
+
 ## 1.0.1 - 2026-10-04
 
 ### Changed
