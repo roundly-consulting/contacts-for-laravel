@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\AssertionFailedError;
+use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
 use RoundlyConsulting\Contacts\ContactsManager;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Events\ContactAdded;
+use RoundlyConsulting\Contacts\Exceptions\ContactException;
 use RoundlyConsulting\Contacts\Facades\Contacts;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Testing\ContactsFake;
@@ -193,3 +195,110 @@ it('still reads from the database under the fake', function (): void {
     expect($user->primaryEmail()?->is($stored))->toBeTrue()
         ->and(Contacts::for($user)->all())->toHaveCount(1);
 });
+
+/**
+ * Chat review C-5: the fake accepted what the real manager refuses (an invalid value, a
+ * structured address on a non-address kind), never applied first-of-kind `auto_primary`,
+ * gave every synced item position 0 and kept each item's own kind. Each scenario runs once
+ * against the real manager and once under the fake, for two owners in the same stored state,
+ * and must come out the same: the same exception, or the same kind, value, primary flag and
+ * position for every contact handed back.
+ */
+function fakeParityOutcome(Closure $scenario, User $owner): array|string
+{
+    try {
+        $result = $scenario($owner);
+    } catch (ContactException $exception) {
+        return $exception::class;
+    }
+
+    return collect(is_iterable($result) ? $result : [$result])
+        ->map(fn (Contact $contact): array => [$contact->kind, $contact->value, $contact->is_primary, $contact->position])
+        ->values()
+        ->all();
+}
+
+it('behaves like the real manager under the fake', function (Closure $setup, Closure $scenario): void {
+    $real = User::create();
+    $faked = User::create();
+    $setup($real);
+    $setup($faked);
+
+    $expected = fakeParityOutcome($scenario, $real);
+    Contacts::fake();
+
+    expect(fakeParityOutcome($scenario, $faked))->toBe($expected);
+})->with([
+    'an invalid value is refused' => [
+        fn (User $owner) => null,
+        fn (User $owner) => Contacts::for($owner)->email('not-an-email')->add(),
+    ],
+    'a structured address on an email is refused' => [
+        fn (User $owner) => null,
+        fn (User $owner) => Contacts::for($owner)->add(new ContactData(
+            ContactType::Email,
+            'a@x.test',
+            address: AddressData::make(city: 'Vienna', street: 'Ring 3', postalCode: '1010', countryIso: 'AT'),
+        )),
+    ],
+    'the first of a kind becomes primary, the next does not' => [
+        fn (User $owner) => null,
+        fn (User $owner) => [$owner->addPhone('+421900000001'), $owner->addPhone('+421 900 000 002')],
+    ],
+    'a kind that already has a primary keeps it' => [
+        fn (User $owner) => $owner->addPhone('+421900000001'),
+        fn (User $owner) => $owner->addPhone('+421900000002'),
+    ],
+    'auto_primary off promotes nothing' => [
+        fn (User $owner) => config()->set('contacts.auto_primary', false),
+        fn (User $owner) => $owner->addEmail('a@x.test'),
+    ],
+    'a structured address renders into the value' => [
+        fn (User $owner) => null,
+        fn (User $owner) => Contacts::for($owner)->structuredAddress(['city' => 'Vienna', 'street' => 'Ring 3', 'postalCode' => '1010', 'countryIso' => 'AT'])->add(),
+    ],
+    'sync coerces the kind and numbers positions by input order' => [
+        fn (User $owner) => null,
+        fn (User $owner) => Contacts::for($owner)->sync(ContactType::Url, [
+            new ContactData(ContactType::Url, 'a.test'),
+            new ContactData(ContactType::Email, 'b.test'),
+        ]),
+    ],
+    'sync refuses an invalid item' => [
+        fn (User $owner) => null,
+        fn (User $owner) => Contacts::for($owner)->sync(ContactType::Email, [new ContactData(ContactType::Email, 'nope')]),
+    ],
+    'sync keeps a matched primary' => [
+        fn (User $owner) => [$owner->addEmail('a@x.test'), $owner->addEmail('b@x.test')],
+        fn (User $owner) => Contacts::for($owner)->sync(ContactType::Email, [
+            new ContactData(ContactType::Email, 'b@x.test'),
+            new ContactData(ContactType::Email, 'a@x.test'),
+        ]),
+    ],
+    'sync promotes the first item when the primary is synced away' => [
+        fn (User $owner) => $owner->addEmail('a@x.test'),
+        fn (User $owner) => Contacts::for($owner)->sync(ContactType::Email, [
+            new ContactData(ContactType::Email, 'b@x.test'),
+            new ContactData(ContactType::Email, 'c@x.test'),
+        ]),
+    ],
+    'sync hands the primary to a flagged item' => [
+        fn (User $owner) => $owner->addEmail('a@x.test'),
+        fn (User $owner) => Contacts::for($owner)->sync(ContactType::Email, [
+            new ContactData(ContactType::Email, 'a@x.test'),
+            new ContactData(ContactType::Email, 'b@x.test', isPrimary: true),
+        ]),
+    ],
+    'sync of a kind that has no primary promotes nothing' => [
+        function (User $owner): void {
+            config()->set('contacts.auto_primary', false);
+            $owner->addEmail('a@x.test');
+            config()->set('contacts.auto_primary', true);
+        },
+        fn (User $owner) => Contacts::for($owner)->sync(ContactType::Email, [new ContactData(ContactType::Email, 'b@x.test')]),
+    ],
+    'sync of a registered custom kind' => [
+        fn (User $owner) => config()->set('contacts.types', ['whatsapp' => ['rules' => ['required', 'string', 'regex:/^\+?[1-9]\d{6,14}$/']]]),
+        fn (User $owner) => Contacts::for($owner)->sync('whatsapp', [new ContactData(ContactType::Custom, '+421 900 000 003')]),
+    ],
+]);

@@ -58,6 +58,10 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
   (new id, lost verification, cascade-trashed address and connections).
 - `sync()` returns the stored primary flags when an item is flagged `isPrimary`: an earlier synced
   contact it demoted no longer comes back as primary too.
+- `Contacts::fake()` checks adds and syncs like the real manager — an invalid value or a structured
+  address on a non-address kind throws the same `InvalidContactValue` — and the unsaved contacts it
+  returns carry what the real ones would store: the primary flag (first of a kind while
+  `auto_primary` is on), the position, and for a sync the synced kind and input-order positions.
 
 ## 1.0.1 - 2026-10-04
 

@@ -36,7 +36,6 @@ final readonly class SyncContactsAction
     public function execute(Model $owner, ContactType|string $type, array $items): EloquentCollection
     {
         $kind = ContactKind::of($type);
-        $type = ContactType::fromValueOrCustom($kind);
 
         /** @var EloquentCollection<int, Contact> $existing */
         $existing = $owner->morphMany(ContactModel::class(), 'owner')
@@ -50,22 +49,9 @@ final readonly class SyncContactsAction
         $position = 0;
 
         foreach ($items as $item) {
-            $data = new ContactData(
-                type: $type,
-                value: $item->value,
-                label: $item->label,
-                name: $item->name,
-                category: $item->category,
-                isPrimary: $item->isPrimary,
-                position: $position,
-                meta: $item->meta,
-                kind: $kind,
-                address: $item->address,
-            );
-
             // Matched on the value as it would be stored — an address-only item's is the render
             // of its structured address, never the blank it was given.
-            $data = ContactPreflight::prepare($data);
+            $data = ContactPreflight::prepareSyncItem($item, $kind, $position++);
 
             $match = $existing->first(
                 fn (Contact $contact): bool => $contact->value === $data->value,
@@ -79,7 +65,6 @@ final readonly class SyncContactsAction
             }
 
             $result->push($contact);
-            $position++;
         }
 
         // The primary goes last: deleting it promotes the next contact by position, and by

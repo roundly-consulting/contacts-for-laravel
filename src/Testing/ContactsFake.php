@@ -7,18 +7,20 @@ namespace RoundlyConsulting\Contacts\Testing;
 use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use PHPUnit\Framework\Assert as PHPUnit;
-use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
 use RoundlyConsulting\Contacts\ContactsManager;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
+use RoundlyConsulting\Contacts\Exceptions\InvalidContactValue;
 use RoundlyConsulting\Contacts\Models\Contact;
-use RoundlyConsulting\Contacts\Support\ContactAddressFormatter;
 use RoundlyConsulting\Contacts\Support\ContactKind;
 use RoundlyConsulting\Contacts\Support\ContactModel;
+use RoundlyConsulting\Contacts\Support\ContactPreflight;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 use SensitiveParameter;
 
 /**
@@ -28,10 +30,14 @@ use SensitiveParameter;
  * change and verification step — through the facade, an injected manager, a contact
  * book, the verification accessor, the HasContacts trait or a Contact model method — is
  * recorded for the assertions below. Reads still hit the database.
+ *
+ * Adds and syncs are checked like the real ones — the same `InvalidContactValue` for an
+ * invalid value or a structured address on a non-address kind — and come back as the real
+ * ones would be stored: normalized, kinded, positioned, and primary when first of a kind.
  */
 final class ContactsFake extends ContactsManager
 {
-    /** @var list<array{owner: Model, data: ContactData}> */
+    /** @var list<array{owner: Model, data: ContactData, contact: Contact}> */
     private array $added = [];
 
     /** @var list<array{owner: Model, kind: string, items: list<ContactData>}> */
@@ -60,25 +66,62 @@ final class ContactsFake extends ContactsManager
         parent::__construct($container);
     }
 
+    /**
+     * Checked, normalized, kinded and positioned exactly as the real add would store it —
+     * first of its kind is primary while `contacts.auto_primary` is on — judged against the
+     * stored contacts plus the ones this fake already handed out, since it writes nothing.
+     *
+     * @throws InvalidContactValue
+     */
     public function addFor(Model $owner, ContactData $data): Contact
     {
-        $this->added[] = ['owner' => $owner, 'data' => $data];
+        $prepared = ContactPreflight::prepare($data);
+        $pending = $this->addedFor($owner, $prepared->kind);
 
-        return $this->unsaved($owner, $data);
+        $isFirstOfKind = $pending === [] && ! $this->stored($owner, $prepared->kind)->exists();
+
+        $contact = $this->unsaved(
+            $owner,
+            $prepared,
+            isPrimary: $prepared->isPrimary || ($isFirstOfKind && Config::boolean('contacts.auto_primary', true)),
+            position: $prepared->position ?? $this->nextPosition($owner, $prepared->kind, $pending),
+        );
+
+        $this->added[] = ['owner' => $owner, 'data' => $data, 'contact' => $contact];
+
+        return $contact;
     }
 
     /**
+     * Rebuilt item by item as the real sync rebuilds them — the synced kind, positions in
+     * input order, the same checks — with the primary flag the stored set would end on.
+     *
      * @param  list<ContactData>  $items
      * @return EloquentCollection<int, Contact>
+     *
+     * @throws InvalidContactValue
      */
     public function syncFor(Model $owner, ContactType|string $type, array $items): EloquentCollection
     {
-        $this->synced[] = ['owner' => $owner, 'kind' => ContactKind::of($type), 'items' => $items];
+        $kind = ContactKind::of($type);
 
-        return new EloquentCollection(array_map(
-            fn (ContactData $item): Contact => $this->unsaved($owner, $item),
-            $items,
-        ));
+        $prepared = [];
+
+        foreach ($items as $item) {
+            $prepared[] = ContactPreflight::prepareSyncItem($item, $kind, count($prepared));
+        }
+
+        $this->synced[] = ['owner' => $owner, 'kind' => $kind, 'items' => $items];
+
+        $primary = $this->syncedPrimary($owner, $kind, $prepared);
+
+        $contacts = [];
+
+        foreach ($prepared as $position => $data) {
+            $contacts[] = $this->unsaved($owner, $data, isPrimary: $position === $primary, position: $position);
+        }
+
+        return new EloquentCollection($contacts);
     }
 
     public function update(Contact $contact, ContactData $data): Contact
@@ -242,17 +285,11 @@ final class ContactsFake extends ContactsManager
     }
 
     /**
-     * An unsaved contact carrying the data, owned by the owner — what the real add would
-     * have stored, minus the row. A structured address is rendered, never stored.
+     * An unsaved contact carrying the prepared data, owned by the owner — what the real add
+     * would have stored, minus the row. A structured address is rendered, never stored.
      */
-    private function unsaved(Model $owner, ContactData $data): Contact
+    private function unsaved(Model $owner, ContactData $data, bool $isPrimary, int $position): Contact
     {
-        $value = $data->value;
-
-        if ($data->address instanceof AddressData && trim($value) === '') {
-            $value = ContactAddressFormatter::fromData($data->address);
-        }
-
         $model = ContactModel::class();
 
         return (new $model)->forceFill([
@@ -260,14 +297,88 @@ final class ContactsFake extends ContactsManager
             'owner_id' => $owner->getKey(),
             'type' => $data->kind,
             'name' => $data->name ?? '',
-            'value' => $data->type->normalize($value),
+            'value' => $data->value,
             'label' => $data->label,
             'category' => $data->category,
-            'is_primary' => $data->isPrimary,
-            'position' => $data->position ?? 0,
+            'is_primary' => $isPrimary,
+            'position' => $position,
             'meta' => $data->meta,
             'created_at' => Carbon::now(),
         ]);
+    }
+
+    /**
+     * The owner's stored, live contacts of one kind.
+     *
+     * @return Builder<Contact>
+     */
+    private function stored(Model $owner, string $kind): Builder
+    {
+        return ContactModel::class()::query()->forOwner($owner)->ofType($kind);
+    }
+
+    /**
+     * The contacts this fake already handed out to the owner for one kind.
+     *
+     * @return list<Contact>
+     */
+    private function addedFor(Model $owner, string $kind): array
+    {
+        return array_values(array_map(
+            static fn (array $added): Contact => $added['contact'],
+            array_filter(
+                $this->added,
+                static fn (array $added): bool => $added['owner']->is($owner) && $added['contact']->kind === $kind,
+            ),
+        ));
+    }
+
+    /**
+     * After the last stored or handed-out contact of the kind, as the real add numbers them.
+     *
+     * @param  list<Contact>  $pending
+     */
+    private function nextPosition(Model $owner, string $kind, array $pending): int
+    {
+        $positions = array_map(static fn (Contact $contact): int => $contact->position, $pending);
+        $stored = $this->stored($owner, $kind)->max('position');
+
+        if (is_numeric($stored)) {
+            $positions[] = (int) $stored;
+        }
+
+        return $positions === [] ? 0 : max($positions) + 1;
+    }
+
+    /**
+     * The index of the synced item the real sync would leave primary: the last one flagged,
+     * else the one matching the stored primary, else — while `contacts.auto_primary` is on
+     * and the kind was empty (first of its kind) or its primary is synced away — the first.
+     *
+     * @param  list<ContactData>  $items
+     */
+    private function syncedPrimary(Model $owner, string $kind, array $items): ?int
+    {
+        $flagged = array_keys(array_filter($items, static fn (ContactData $item): bool => $item->isPrimary));
+
+        if ($flagged !== []) {
+            return max($flagged);
+        }
+
+        $stored = $this->stored($owner, $kind)->get();
+        $primary = $stored->first(static fn (Contact $contact): bool => $contact->is_primary);
+
+        if ($primary instanceof Contact) {
+            foreach ($items as $position => $item) {
+                if ($item->value === $primary->value) {
+                    return $position;
+                }
+            }
+        }
+
+        $promotes = $stored->isEmpty() || $primary instanceof Contact;
+
+        return $items !== [] && $promotes && Config::boolean('contacts.auto_primary', true) ? 0 : null;
     }
 
     /**

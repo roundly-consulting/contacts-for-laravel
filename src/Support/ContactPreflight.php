@@ -18,6 +18,8 @@ use RoundlyConsulting\Contacts\Rules\ValidContactValue;
  * - a blank value with a structured address becomes the address's one-line render;
  * - the value is normalized for its kind, then validated against the kind's rules.
  *
+ * A sync item is first re-kinded to the synced kind and positioned by input order.
+ *
  * @internal
  */
 final class ContactPreflight
@@ -46,5 +48,27 @@ final class ContactPreflight
         }
 
         return $data;
+    }
+
+    /**
+     * One item of a sync, as it will be stored: re-kinded to the synced kind, positioned by
+     * its place in the input, then prepared like any other write.
+     *
+     * @throws InvalidContactValue
+     */
+    public static function prepareSyncItem(ContactData $item, string $kind, int $position): ContactData
+    {
+        return self::prepare(new ContactData(
+            type: ContactType::fromValueOrCustom($kind),
+            value: $item->value,
+            label: $item->label,
+            name: $item->name,
+            category: $item->category,
+            isPrimary: $item->isPrimary,
+            position: $position,
+            meta: $item->meta,
+            kind: $kind,
+            address: $item->address,
+        ));
     }
 }
