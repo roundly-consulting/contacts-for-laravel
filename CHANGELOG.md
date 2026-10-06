@@ -6,11 +6,23 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+### Added
+
+- `HasContacts::addAddressContact(string $value, ?string $label = null, bool $primary = false)` adds
+  a free-text address contact under a name that does not collide with addresses'
+  `HasAddresses::addAddress()`.
+
 ### Changed
 
 - Documentation: the `default_country_code` config comment now says what happens without a country
   code — a national number with a trunk 0 (`0900 123 456`) is rejected as an invalid phone, one
   without it is stored as its digits. Behaviour is unchanged.
+
+### Deprecated
+
+- `HasContacts::addAddress()` — use `addAddressContact()`; the alias is removed in 2.0. Until then a
+  model using both `HasContacts` and `HasAddresses` resolves the collision with `use HasAddresses,
+  HasContacts { HasAddresses::addAddress insteadof HasContacts; }`.
 
 ### Fixed
 

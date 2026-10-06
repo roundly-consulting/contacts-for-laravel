@@ -72,7 +72,11 @@ trait HasContacts
         ));
     }
 
-    public function addAddress(string $value, ?string $label = null, bool $primary = false): Contact
+    /**
+     * Add a free-text address contact. Named apart from addresses' `HasAddresses::addAddress()`,
+     * so a model can use both traits.
+     */
+    public function addAddressContact(string $value, ?string $label = null, bool $primary = false): Contact
     {
         return $this->addContact(new ContactData(
             type: ContactType::Address,
@@ -80,6 +84,16 @@ trait HasContacts
             label: $label,
             isPrimary: $primary,
         ));
+    }
+
+    /**
+     * @deprecated use addAddressContact(); removed in 2.0. It collides with addresses'
+     *             `HasAddresses::addAddress(AddressData)`, so a model using both traits must
+     *             resolve it: `use HasAddresses, HasContacts { HasAddresses::addAddress insteadof HasContacts; }`.
+     */
+    public function addAddress(string $value, ?string $label = null, bool $primary = false): Contact
+    {
+        return $this->addAddressContact($value, $label, $primary);
     }
 
     /**
