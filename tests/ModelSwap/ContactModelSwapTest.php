@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use RoundlyConsulting\Contacts\Enums\ContactType;
+use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Tests\Fixtures\CustomContactModel;
 use RoundlyConsulting\Contacts\Tests\Models\User;
 
@@ -51,6 +52,22 @@ it('answers primary and type-scoped lookups through the swapped model', function
     expect($user->primaryContact(ContactType::Email))->toBeInstanceOf(CustomContactModel::class)
         ->and($user->contactsOfType(ContactType::Email)->first())->toBeInstanceOf(CustomContactModel::class)
         ->and($user->contacts()->first())->toBeInstanceOf(CustomContactModel::class);
+});
+
+/**
+ * Chat review C-13: the factory the package ships is part of the seam. A host test seeding
+ * through it must get rows made as its own model — counted on the subclass, so its events
+ * and casts ran — whether it calls the factory on the subclass or on the packaged model.
+ */
+it('builds the host contact model from the packaged factory', function (): void {
+    expect('contacts.model')->toHonourModelSwap(CustomContactModel::class, function (): array {
+        $owner = User::create(['name' => 'Ada']);
+
+        return [
+            CustomContactModel::factory()->email()->forOwner($owner)->create(),
+            Contact::factory()->phone()->forOwner($owner)->create(),
+        ];
+    });
 });
 
 // The structural half of the seam — `Contact` is non-final, and `contacts.model` really

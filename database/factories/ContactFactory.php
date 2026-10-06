@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Hash;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
+use RoundlyConsulting\Contacts\Support\ContactModel;
 
 /**
  * @extends Factory<Contact>
@@ -16,6 +17,18 @@ use RoundlyConsulting\Contacts\Models\Contact;
 final class ContactFactory extends Factory
 {
     protected $model = Contact::class;
+
+    /**
+     * Build the model the host configured, not the packaged one: a host that points
+     * `contacts.model` at its own subclass gets that subclass, with its casts, events and
+     * observers, out of the factory the package ships.
+     *
+     * @return class-string<Contact>
+     */
+    public function modelName(): string
+    {
+        return ContactModel::class();
+    }
 
     /**
      * @return array<model-property<Contact>, mixed>
