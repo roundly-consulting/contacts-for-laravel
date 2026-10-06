@@ -84,13 +84,15 @@ final readonly class ContactBook
     }
 
     /**
-     * Reconcile this owner's contacts of one kind to the given set: matching values are
-     * updated in place, new ones created, the rest deleted; positions follow input order.
+     * Reconcile this owner's contacts of one kind — a ContactType or a registered custom kind
+     * such as `whatsapp` — to the given set: matching values are updated in place, new ones
+     * created, the rest deleted; positions follow input order, and every item takes the
+     * synced kind.
      *
      * @param  list<ContactData>  $items
      * @return EloquentCollection<int, Contact>
      */
-    public function sync(ContactType $type, array $items): EloquentCollection
+    public function sync(ContactType|string $type, array $items): EloquentCollection
     {
         return $this->contacts->syncFor($this->owner, $type, $items);
     }

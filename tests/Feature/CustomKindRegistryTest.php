@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use PHPUnit\Framework\AssertionFailedError;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Exceptions\InvalidContactValue;
+use RoundlyConsulting\Contacts\Facades\Contacts;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Rules\ValidContactValue;
 use RoundlyConsulting\Contacts\Support\ContactRules;
@@ -185,4 +187,46 @@ it('keeps each registered kind primary independently', function (): void {
 
     expect($whatsapp->fresh()->is_primary)->toBeTrue()
         ->and($telegram->fresh()->is_primary)->toBeTrue();
+});
+
+/**
+ * Chat review C-8 (owner answer #35): `sync()` took only a ContactType, so a registered kind
+ * could not be synced — its items were rewritten to `custom` and the stored whatsapp contacts
+ * were never reconciled. It now takes the raw kind too, and syncs it as itself.
+ */
+it('syncs a registered custom kind as itself', function (): void {
+    $user = User::create();
+    $dropped = $user->addContact(ContactData::fromArray(['type' => 'whatsapp', 'value' => '+421900000001']));
+    $kept = $user->addContact(ContactData::fromArray(['type' => 'whatsapp', 'value' => '+421900000002']));
+    $other = $user->addContact(new ContactData(ContactType::Custom, 'loyalty-42'));
+
+    $synced = Contacts::for($user)->sync('whatsapp', [
+        new ContactData(ContactType::Custom, '+421900000002', label: 'Support', kind: 'whatsapp'),
+        // Coerced to the synced kind, like any item of another kind.
+        new ContactData(ContactType::Phone, '+421900000003'),
+    ]);
+
+    expect($synced->map(fn (Contact $contact): string => $contact->kind)->all())->toBe(['whatsapp', 'whatsapp'])
+        ->and($synced->first()?->is($kept))->toBeTrue()
+        ->and($kept->fresh()?->label)->toBe('Support')
+        ->and($dropped->fresh()?->trashed())->toBeTrue()
+        ->and($other->fresh()?->kind)->toBe('custom')
+        ->and(Contacts::for($user)->ofType('whatsapp')->pluck('value')->all())->toBe(['+421900000002', '+421900000003'])
+        ->and(Contacts::for($user)->primary('whatsapp')?->is($kept))->toBeTrue();
+
+    expect(fn () => Contacts::for($user)->sync('whatsapp', [new ContactData(ContactType::Custom, 'not-a-number')]))
+        ->toThrow(InvalidContactValue::class, 'not a valid whatsapp contact');
+});
+
+it('records a synced custom kind under the fake', function (): void {
+    $user = User::create();
+    $fake = Contacts::fake();
+
+    Contacts::for($user)->sync('whatsapp', [new ContactData(ContactType::Custom, '+421900000002', kind: 'whatsapp')]);
+
+    $fake->assertSynced('whatsapp');
+    $fake->assertSynced('whatsapp', fn (array $items): bool => count($items) === 1);
+
+    expect(fn () => $fake->assertSynced(ContactType::Custom))->toThrow(AssertionFailedError::class)
+        ->and(fn () => $fake->assertSynced('telegram'))->toThrow(AssertionFailedError::class);
 });

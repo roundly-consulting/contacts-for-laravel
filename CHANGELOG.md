@@ -11,6 +11,9 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 - `HasContacts::addAddressContact(string $value, ?string $label = null, bool $primary = false)` adds
   a free-text address contact under a name that does not collide with addresses'
   `HasAddresses::addAddress()`.
+- `Contacts::for($owner)->sync()` takes a raw kind as well as a `ContactType`, so a registered
+  custom kind syncs as itself: `->sync('whatsapp', [...])` reconciles the owner's whatsapp contacts
+  and stores every item as `whatsapp`. `Contacts::fake()->assertSynced()` takes the raw kind too.
 
 ### Changed
 
@@ -21,6 +24,8 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
   `ContactData::$address`) is now the contact's primary `Address`, so `primaryAddress()` finds it
   and `formattedAddress()` renders it — later edits to the address included — instead of falling
   back to the mirrored `value`.
+- The `@internal` `ContactsManager::syncFor()` (and `ContactsFake::syncFor()`) now types its kind as
+  `ContactType|string`; a host subclass overriding it must widen its parameter the same way.
 
 ### Deprecated
 

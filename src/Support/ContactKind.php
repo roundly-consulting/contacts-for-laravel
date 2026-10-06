@@ -24,6 +24,19 @@ use RoundlyConsulting\Contacts\Enums\ContactType;
 final class ContactKind
 {
     /**
+     * The raw kind a ContactType or kind string names: the type's value, the string itself,
+     * or `custom` for a blank one.
+     */
+    public static function of(ContactType|string $type): string
+    {
+        if ($type instanceof ContactType) {
+            return $type->value;
+        }
+
+        return $type !== '' ? $type : ContactType::Custom->value;
+    }
+
+    /**
      * The `contacts.types.<kind>` overrides for a raw kind, or an empty array.
      *
      * @return array<string, mixed>

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
+use RoundlyConsulting\Contacts\Support\ContactKind;
 use RoundlyConsulting\Contacts\Support\ContactModel;
 use RoundlyConsulting\Contacts\Support\ContactPreflight;
 
@@ -23,18 +24,23 @@ final readonly class SyncContactsAction
     /**
      * Reconcile an owner's contacts of a single kind to match the given set.
      *
-     * Existing contacts whose value matches are updated in place; missing ones
-     * are created; absent ones are deleted. Positions follow input order. When the
-     * primary is synced away, the first synced contact takes over (auto_primary).
+     * The kind is a ContactType or a raw kind string, so a registered custom kind (e.g.
+     * `whatsapp`) is synced as itself. Every item takes that kind. Existing contacts whose
+     * value matches are updated in place; missing ones are created; absent ones are deleted.
+     * Positions follow input order. When the primary is synced away, the first synced
+     * contact takes over (auto_primary).
      *
      * @param  list<ContactData>  $items
      * @return EloquentCollection<int, Contact>
      */
-    public function execute(Model $owner, ContactType $type, array $items): EloquentCollection
+    public function execute(Model $owner, ContactType|string $type, array $items): EloquentCollection
     {
+        $kind = ContactKind::of($type);
+        $type = ContactType::fromValueOrCustom($kind);
+
         /** @var EloquentCollection<int, Contact> $existing */
         $existing = $owner->morphMany(ContactModel::class(), 'owner')
-            ->where('type', $type->value)
+            ->where('type', $kind)
             ->get();
 
         /** @var EloquentCollection<int, Contact> $result */
@@ -53,6 +59,7 @@ final readonly class SyncContactsAction
                 isPrimary: $item->isPrimary,
                 position: $position,
                 meta: $item->meta,
+                kind: $kind,
                 address: $item->address,
             );
 

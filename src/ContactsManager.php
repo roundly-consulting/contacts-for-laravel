@@ -124,7 +124,7 @@ class ContactsManager
      * @param  list<ContactData>  $items
      * @return EloquentCollection<int, Contact>
      */
-    public function syncFor(Model $owner, ContactType $type, array $items): EloquentCollection
+    public function syncFor(Model $owner, ContactType|string $type, array $items): EloquentCollection
     {
         return $this->container->make(SyncContactsAction::class)->execute($owner, $type, $items);
     }

@@ -17,6 +17,7 @@ use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Support\ContactAddressFormatter;
+use RoundlyConsulting\Contacts\Support\ContactKind;
 use RoundlyConsulting\Contacts\Support\ContactModel;
 use SensitiveParameter;
 
@@ -33,7 +34,7 @@ final class ContactsFake extends ContactsManager
     /** @var list<array{owner: Model, data: ContactData}> */
     private array $added = [];
 
-    /** @var list<array{owner: Model, type: ContactType, items: list<ContactData>}> */
+    /** @var list<array{owner: Model, kind: string, items: list<ContactData>}> */
     private array $synced = [];
 
     /** @var list<array{contact: Contact, data: ContactData}> */
@@ -70,9 +71,9 @@ final class ContactsFake extends ContactsManager
      * @param  list<ContactData>  $items
      * @return EloquentCollection<int, Contact>
      */
-    public function syncFor(Model $owner, ContactType $type, array $items): EloquentCollection
+    public function syncFor(Model $owner, ContactType|string $type, array $items): EloquentCollection
     {
-        $this->synced[] = ['owner' => $owner, 'type' => $type, 'items' => $items];
+        $this->synced[] = ['owner' => $owner, 'kind' => ContactKind::of($type), 'items' => $items];
 
         return new EloquentCollection(array_map(
             fn (ContactData $item): Contact => $this->unsaved($owner, $item),
@@ -139,13 +140,14 @@ final class ContactsFake extends ContactsManager
     }
 
     /**
+     * @param  ContactType|string|null  $type  the synced kind — a ContactType or a raw kind such as `whatsapp`
      * @param  (Closure(list<ContactData>, Model): bool)|null  $callback
      */
-    public function assertSynced(?ContactType $type = null, ?Closure $callback = null): void
+    public function assertSynced(ContactType|string|null $type = null, ?Closure $callback = null): void
     {
         $matches = array_filter(
             $this->synced,
-            fn (array $synced): bool => ($type === null || $synced['type'] === $type)
+            fn (array $synced): bool => ($type === null || $synced['kind'] === ContactKind::of($type))
                 && ($callback === null || $callback($synced['items'], $synced['owner']) === true),
         );
 
