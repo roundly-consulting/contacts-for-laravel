@@ -14,6 +14,10 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
   host subclass's `factory()` create the host's model (its casts, events and observers run).
 - `Contacts::setPrimary()` refuses a soft-deleted contact with `PrimaryContactConflict::trashed()`
   instead of demoting the live primary and leaving the kind without one.
+- `PendingContact::structuredAddress()` no longer turns an explicitly chosen kind
+  (`->type('whatsapp')`, `->type(ContactType::Custom)`) into an address: `add()` refuses it with
+  `InvalidContactValue::structuredAddressOn()` whatever the call order. Only a builder with no kind
+  chosen defaults to address.
 
 ## 1.0.1 - 2026-10-04
 

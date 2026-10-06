@@ -18,6 +18,9 @@ final class PendingContact
 {
     private ContactType $type = ContactType::Custom;
 
+    /** Whether a kind was chosen explicitly — only an untyped contact defaults to address. */
+    private bool $typed = false;
+
     /** The raw kind when it is a registered custom kind (e.g. `whatsapp`); null = the type's own. */
     private ?string $kind = null;
 
@@ -52,6 +55,7 @@ final class PendingContact
         // Keep the raw string: a registered custom kind types as Custom, but its label,
         // icon and validation rules are keyed by the kind itself.
         $this->kind = is_string($type) && $type !== '' ? $type : null;
+        $this->typed = true;
 
         return $this;
     }
@@ -60,6 +64,7 @@ final class PendingContact
     {
         $this->type = ContactType::Email;
         $this->kind = null;
+        $this->typed = true;
         $this->value = $value;
 
         return $this;
@@ -69,6 +74,7 @@ final class PendingContact
     {
         $this->type = ContactType::Phone;
         $this->kind = null;
+        $this->typed = true;
         $this->value = $value;
 
         return $this;
@@ -78,6 +84,7 @@ final class PendingContact
     {
         $this->type = ContactType::Url;
         $this->kind = null;
+        $this->typed = true;
         $this->value = $value;
 
         return $this;
@@ -87,6 +94,7 @@ final class PendingContact
     {
         $this->type = ContactType::Address;
         $this->kind = null;
+        $this->typed = true;
         $this->value = $value;
 
         return $this;
@@ -102,8 +110,9 @@ final class PendingContact
     /**
      * Attach a validated, structured postal address to this address-type contact.
      * On add() the Address is created and the contact's value becomes its
-     * one-line render. Accepts an AddressData or an attribute array. A contact of
-     * any kind other than address is refused on add().
+     * one-line render. Accepts an AddressData or an attribute array. A contact with no
+     * kind chosen yet becomes an address; any other kind — a registered custom kind
+     * included, in whichever order it was set — is refused on add().
      *
      * @param  AddressData|array<string, mixed>  $data
      */
@@ -113,7 +122,7 @@ final class PendingContact
             ? $data
             : AddressDataFactory::fromArray($data);
 
-        if ($this->type === ContactType::Custom) {
+        if (! $this->typed) {
             $this->type = ContactType::Address;
             $this->kind = null;
         }

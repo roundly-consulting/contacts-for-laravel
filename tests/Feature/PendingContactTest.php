@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use RoundlyConsulting\Contacts\Enums\ContactType;
+use RoundlyConsulting\Contacts\Exceptions\InvalidContactValue;
 use RoundlyConsulting\Contacts\Facades\Contacts;
+use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Tests\Models\User;
 
 it('builds an email contact with every setter', function (): void {
@@ -50,4 +52,27 @@ it('builds a contact via type and value setters', function (): void {
 
     $typed = Contacts::for($user)->type(ContactType::Phone)->value('+421900000000')->add();
     expect($typed->type)->toBe(ContactType::Phone);
+});
+
+/**
+ * Chat review C-10: `structuredAddress()` defaulted the kind to address whenever the type
+ * was still Custom — which an explicit `type('whatsapp')` also sets — so the result depended
+ * on call order: the reverse order refused it, this one silently stored an address.
+ */
+it('refuses a structured address on an explicitly typed custom kind, in either order', function (): void {
+    config()->set('contacts.types', ['whatsapp' => ['label' => 'WhatsApp']]);
+    $user = User::create();
+    $address = ['city' => 'Vienna', 'street' => 'Ring 3', 'postalCode' => '1010', 'countryIso' => 'AT'];
+
+    expect(fn () => Contacts::for($user)->type('whatsapp')->structuredAddress($address)->add())
+        ->toThrow(InvalidContactValue::class, '(got: whatsapp)')
+        ->and(fn () => Contacts::for($user)->structuredAddress($address)->type('whatsapp')->add())
+        ->toThrow(InvalidContactValue::class, '(got: whatsapp)')
+        ->and(fn () => Contacts::for($user)->type(ContactType::Custom)->structuredAddress($address)->add())
+        ->toThrow(InvalidContactValue::class, '(got: custom)')
+        ->and(Contact::query()->count())->toBe(0);
+
+    $defaulted = Contacts::for($user)->structuredAddress($address)->add();
+
+    expect($defaulted->kind)->toBe('address');
 });
