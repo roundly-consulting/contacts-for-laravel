@@ -31,6 +31,10 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
   back to the mirrored `value`.
 - The `@internal` `ContactsManager::syncFor()` (and `ContactsFake::syncFor()`) now types its kind as
   `ContactType|string`; a host subclass overriding it must widen its parameter the same way.
+- `setPrimary()` writes the primary flag with a query on the stored row (as the demotion of the
+  previous primary always did): the promoted contact no longer fires Eloquent `saving` / `updated`
+  model events — listen for `PrimaryContactChanged`, which now fires after the transaction commits —
+  and unsaved changes on the passed copy are no longer saved by it.
 
 ### Deprecated
 
