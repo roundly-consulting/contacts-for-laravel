@@ -18,6 +18,11 @@ use RoundlyConsulting\PackageToolkit\Support\Config;
  * Generate a verification token for a contact, store only its hash plus an
  * expiry, and dispatch ContactVerificationRequested with the plaintext so the
  * host application can deliver it. The package never sends anything itself.
+ *
+ * The token is issued for the contact as STORED, under a lock on its row: a copy loaded
+ * before the value changed is refreshed first, so the event — whose value the host delivers
+ * the code to — always names the value the token can verify. Unsaved changes on the copy
+ * are not written (and are dropped by that refresh).
  */
 final readonly class RequestContactVerificationAction
 {
@@ -30,13 +35,24 @@ final readonly class RequestContactVerificationAction
     {
         $plain = $this->generateToken();
 
-        $ttl = ContactsConfig::verificationTtl();
+        // Hashed before the row is locked: bcrypt is deliberately slow.
+        $token = [
+            'verification_token' => Hash::make($plain),
+            'verification_expires_at' => Carbon::now()->addMinutes(ContactsConfig::verificationTtl()),
+            // A fresh token gets a fresh wrong-guess budget; the old token is gone with it.
+            'verification_attempts' => 0,
+        ];
 
-        $contact->verification_token = Hash::make($plain);
-        $contact->verification_expires_at = Carbon::now()->addMinutes($ttl);
-        // A fresh token gets a fresh wrong-guess budget; the old token is gone with it.
-        $contact->verification_attempts = 0;
-        $contact->save();
+        $contact->getConnection()->transaction(static function () use ($contact, $token): void {
+            $stored = $contact->newQueryWithoutScopes()
+                ->whereKey($contact->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $stored->forceFill($token)->save();
+
+            $contact->setRawAttributes($stored->getAttributes(), true);
+        });
 
         event(new ContactVerificationRequested($contact, $plain));
 

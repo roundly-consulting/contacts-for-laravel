@@ -62,6 +62,10 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
   address on a non-address kind throws the same `InvalidContactValue` — and the unsaved contacts it
   returns carry what the real ones would store: the primary flag (first of a kind while
   `auto_primary` is on), the position, and for a sync the synced kind and input-order positions.
+- `Contacts::verification()->request()` issues the token for the contact as stored, under a row
+  lock: a copy loaded before the value changed is refreshed first, so `ContactVerificationRequested`
+  carries the value the code can verify and a code sent to an old address can no longer verify a new
+  one. Unsaved changes on the passed copy are no longer saved by `request()`.
 
 ## 1.0.1 - 2026-10-04
 

@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Event;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
+use RoundlyConsulting\Contacts\Events\ContactVerificationRequested;
 use RoundlyConsulting\Contacts\Exceptions\InvalidVerificationToken;
 use RoundlyConsulting\Contacts\Facades\Contacts;
+use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Tests\Models\User;
 
 /**
@@ -73,4 +76,42 @@ it('honours a verification set explicitly in the same write', function (): void 
     $contact->update(['value' => 'imported@corp.com', 'verified_at' => now()]);
 
     expect($contact->fresh()?->isVerified())->toBeTrue();
+});
+
+/**
+ * Chat review C-6: `request()` saved the token onto whatever copy it was handed. When the
+ * value had changed since that copy was loaded, the token landed on the row holding the NEW
+ * value while the event carried the OLD one — a code delivered to the old address then
+ * verified the new one. The token is now issued for the stored row, and the event carries it.
+ */
+it('issues a verification code for the stored value, never a stale copy\'s', function (): void {
+    Event::fake([ContactVerificationRequested::class]);
+    $contact = User::create()->addEmail('old@x.test');
+    $stale = Contact::query()->findOrFail($contact->getKey());
+    Contacts::update($contact, new ContactData(ContactType::Email, 'new@x.test'));
+
+    $plain = Contacts::verification()->request($stale);
+
+    Event::assertDispatched(
+        ContactVerificationRequested::class,
+        fn (ContactVerificationRequested $event): bool => $event->contact->value === 'new@x.test' && $event->plainToken === $plain,
+    );
+    Event::assertNotDispatched(
+        ContactVerificationRequested::class,
+        fn (ContactVerificationRequested $event): bool => $event->contact->value === 'old@x.test',
+    );
+
+    expect($stale->value)->toBe('new@x.test')
+        ->and($stale->isDirty())->toBeFalse()
+        ->and($contact->fresh()?->verification_token)->not->toBeNull();
+});
+
+it('issues the token under a lock on the stored row', function (): void {
+    $contact = User::create()->addEmail('a@x.test');
+
+    $log = contactStatements(fn () => Contacts::verification()->request($contact));
+    $lock = array_values(array_filter($log, fn (array $entry): bool => locksContacts($entry['sql'])));
+
+    expect($lock)->toHaveCount(1)
+        ->and($lock[0]['level'])->toBe(1);
 });

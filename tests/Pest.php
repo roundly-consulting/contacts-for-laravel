@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Support\Facades\DB;
 use RoundlyConsulting\Contacts\Testing\ContactExpectations;
 use RoundlyConsulting\Contacts\Tests\Fixtures\SwappedContactTestCase;
 use RoundlyConsulting\Contacts\Tests\TestCase;
+use RoundlyConsulting\Testing\Fixtures\LockRecordingGrammar;
 
 // Explicit paths, not `->in(__DIR__)`: the ModelSwap directory below needs a different
 // base case, and a blanket bind would claim it first. `Unit` carries ArchTest.php, which
@@ -18,3 +21,43 @@ uses(TestCase::class)->in('Feature', 'Unit');
 uses(SwappedContactTestCase::class)->in('ModelSwap');
 
 ContactExpectations::register();
+
+/**
+ * Every statement the callback runs, lower-cased and unquoted, with the transaction level it
+ * ran at. On SQLite a pessimistic lock compiles to nothing, so the fleet's LockRecordingGrammar
+ * is installed to render it as a `/* lock-for-update *\/` marker; a real engine renders
+ * `for update`.
+ *
+ * @return list<array{sql: string, level: int}>
+ */
+function contactStatements(callable $callback): array
+{
+    $connection = DB::connection();
+
+    if ($connection->getDriverName() === 'sqlite') {
+        $connection->setQueryGrammar(new LockRecordingGrammar($connection));
+    }
+
+    $log = [];
+
+    DB::listen(function (QueryExecuted $query) use (&$log): void {
+        $log[] = [
+            'sql' => str_replace(['"', '`'], '', strtolower($query->sql)),
+            'level' => $query->connection->transactionLevel(),
+        ];
+    });
+
+    $callback();
+
+    return $log;
+}
+
+/**
+ * Whether a statement is a locking read of the contacts table.
+ */
+function locksContacts(string $sql): bool
+{
+    return str_starts_with($sql, 'select')
+        && str_contains($sql, ' from contacts ')
+        && (str_contains($sql, 'lock-for-update') || str_contains($sql, 'for update'));
+}
