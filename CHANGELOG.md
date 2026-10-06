@@ -6,6 +6,8 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+## 1.1.0 - 2026-10-06
+
 ### Added
 
 - `HasContacts::addAddressContact(string $value, ?string $label = null, bool $primary = false)` adds
