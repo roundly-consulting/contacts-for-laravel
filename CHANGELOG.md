@@ -18,6 +18,9 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
   (`->type('whatsapp')`, `->type(ContactType::Custom)`) into an address: `add()` refuses it with
   `InvalidContactValue::structuredAddressOn()` whatever the call order. Only a builder with no kind
   chosen defaults to address.
+- `relationsOfKind()` honours `connections.enforce_active_on_check` like the connections listing
+  helpers: while it is on (the default), blocked, pending and expired relationships are left out.
+  Turn the flag off to list them again.
 
 ## 1.0.1 - 2026-10-04
 

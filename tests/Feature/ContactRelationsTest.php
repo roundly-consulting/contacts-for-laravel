@@ -102,3 +102,28 @@ it('surfaces expiring connections', function (): void {
 
     expect($person->expiringConnections()->count())->toBe(1);
 });
+
+/**
+ * Chat review C-7: `relationsOfKind()` listed blocked, pending and expired relationships,
+ * while every connections listing helper (`connectablesOfType()`, which `sharedWith()` uses)
+ * counts only active ones while `connections.enforce_active_on_check` is on.
+ */
+it('lists only active relations while the connections flag enforces it', function (array $state): void {
+    $person = Contact::factory()->create();
+    $company = Contact::factory()->create();
+    $active = Contact::factory()->create();
+
+    $person->relateTo($company, 'works_at')->forceFill($state)->save();
+    $person->relateTo($active, 'works_at');
+
+    expect($person->relationsOfKind('works_at')->modelKeys())->toBe([$active->getKey()])
+        ->and($person->connectablesOfType(Contact::class)->modelKeys())->toBe([$active->getKey()]);
+
+    config()->set('connections.enforce_active_on_check', false);
+
+    expect($person->relationsOfKind('works_at')->modelKeys())->toEqualCanonicalizing([$company->getKey(), $active->getKey()]);
+})->with([
+    'blocked' => [['status' => ConnectionStatus::Blocked]],
+    'pending' => [['status' => ConnectionStatus::Pending]],
+    'expired' => [['expires_at' => now()->subMinute()]],
+]);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Contacts\Concerns;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Connections\Contracts\Connectable;
@@ -12,6 +13,7 @@ use RoundlyConsulting\Contacts\Exceptions\RelationshipException;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Support\ContactModel;
 use RoundlyConsulting\Contacts\Support\ContactsConfig;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 
 /**
  * Typed, CRM-flavoured sugar over the connections graph. Maps a free-form
@@ -42,7 +44,9 @@ trait HasContactRelations
     }
 
     /**
-     * The contacts this contact is related to under the given kind.
+     * The contacts this contact is related to under the given kind. Like the connections
+     * listing helpers (`connectablesOfType()`), only active relationships count while
+     * `connections.enforce_active_on_check` is on: a blocked, pending or expired one is left out.
      *
      * @return EloquentCollection<int, Contact>
      */
@@ -55,6 +59,10 @@ trait HasContactRelations
         /** @var EloquentCollection<int, Connection> $connections */
         $connections = $this->connections()
             ->where('connectable_type', $type)
+            ->when(
+                Config::boolean('connections.enforce_active_on_check', true),
+                static fn (Builder $query): Builder => $query->active(),
+            )
             ->with('connectable')
             ->get();
 
