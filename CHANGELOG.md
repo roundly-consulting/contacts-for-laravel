@@ -12,6 +12,8 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
   `ContactData::fromArray(['address' => [...]])`) keeps its `meta` array instead of dropping it.
 - `ContactFactory` builds the model configured in `contacts.model`, so `Contact::factory()` and a
   host subclass's `factory()` create the host's model (its casts, events and observers run).
+- `Contacts::setPrimary()` refuses a soft-deleted contact with `PrimaryContactConflict::trashed()`
+  instead of demoting the live primary and leaving the kind without one.
 
 ## 1.0.1 - 2026-10-04
 

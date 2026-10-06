@@ -5,6 +5,7 @@ declare(strict_types=1);
 use RoundlyConsulting\Contacts\Actions\SetPrimaryContactAction;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Exceptions\PrimaryContactConflict;
+use RoundlyConsulting\Contacts\Facades\Contacts;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Tests\Models\User;
 
@@ -45,4 +46,23 @@ it('allows owner-less primary by default', function (): void {
     $result = app(SetPrimaryContactAction::class)->execute($contact);
 
     expect($result->is_primary)->toBeTrue();
+});
+
+/**
+ * Chat review C-14: promoting a soft-deleted contact demoted the live primary and flagged
+ * the trashed row, leaving the kind with no live primary — `primaryEmail()` went null and
+ * mail routing silently dropped.
+ */
+it('refuses to promote a trashed contact and keeps the live primary', function (): void {
+    $user = User::create();
+    $live = $user->addEmail('a@x.test');
+    $trashed = $user->addEmail('b@x.test');
+    $trashed->delete();
+
+    expect(fn () => Contacts::setPrimary($trashed))
+        ->toThrow(PrimaryContactConflict::class, 'A deleted contact cannot be primary.');
+
+    expect($live->fresh()?->is_primary)->toBeTrue()
+        ->and(Contact::withTrashed()->findOrFail($trashed->getKey())->is_primary)->toBeFalse()
+        ->and($user->primaryEmail()?->is($live))->toBeTrue();
 });

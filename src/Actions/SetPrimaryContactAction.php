@@ -13,8 +13,16 @@ use RoundlyConsulting\PackageToolkit\Support\Config;
 
 final readonly class SetPrimaryContactAction
 {
+    /**
+     * @throws PrimaryContactConflict when the contact is deleted, or has no owner while
+     *                                `contacts.require_owner_for_primary` is on
+     */
     public function execute(Contact $contact): Contact
     {
+        if ($contact->trashed()) {
+            throw PrimaryContactConflict::trashed();
+        }
+
         if ($contact->owner_id === null && Config::boolean('contacts.require_owner_for_primary')) {
             throw PrimaryContactConflict::requiresOwner();
         }
