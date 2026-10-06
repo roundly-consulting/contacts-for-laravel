@@ -6,6 +6,10 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+### Changed
+
+- Maintenance: CI also runs the test suite against MySQL 8, alongside SQLite and PostgreSQL.
+
 ## 1.1.0 - 2026-10-06
 
 ### Added
