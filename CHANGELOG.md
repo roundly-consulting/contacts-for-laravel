@@ -14,6 +14,11 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 - `Contacts::for($owner)->sync()` takes a raw kind as well as a `ContactType`, so a registered
   custom kind syncs as itself: `->sync('whatsapp', [...])` reconciles the owner's whatsapp contacts
   and stores every item as `whatsapp`. `Contacts::fake()->assertSynced()` takes the raw kind too.
+- A publish-only migration, `update_contacts_table_with_one_primary_per_kind`, adds a partial unique
+  index — one live primary per owner and kind — on PostgreSQL and SQLite, after demoting any
+  duplicate live primaries (the first by position keeps the flag). Existing installs publish and run
+  it: `php artisan vendor:publish --tag=contacts-migrations` then `php artisan migrate`. MySQL has
+  no partial indexes and relies on the lock; owner-less contacts are not covered by the index.
 
 ### Changed
 
@@ -66,6 +71,10 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
   lock: a copy loaded before the value changed is refreshed first, so `ContactVerificationRequested`
   carries the value the code can verify and a code sent to an old address can no longer verify a new
   one. Unsaved changes on the passed copy are no longer saved by `request()`.
+- Two concurrent promotions in one owner and kind can no longer both win: `setPrimary()` — and every
+  add, update, delete and sync that promotes — locks the kind group before demoting, reads the
+  contact as stored, and retries once when the one-primary index refuses a primary written past the
+  lock.
 
 ## 1.0.1 - 2026-10-04
 

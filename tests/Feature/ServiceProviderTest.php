@@ -27,17 +27,24 @@ it('never auto-loads its migrations', function (): void {
         ->not->toContain(realpath(__DIR__.'/../../database/migrations'));
 });
 
-it('publishes the migration into the host under a timestamped name', function (): void {
+it('publishes both migrations into the host under timestamped names, the table first', function (): void {
     $paths = ServiceProvider::pathsToPublish(ContactsServiceProvider::class, 'contacts-migrations');
 
-    expect($paths)->toHaveCount(1);
+    expect($paths)->toHaveCount(2);
 
-    $source = (string) array_key_first($paths);
-    $destination = (string) reset($paths);
+    $sources = array_map(basename(...), array_keys($paths));
+    $destinations = array_values($paths);
 
-    expect($source)->toEndWith('database/migrations/create_contacts_table.php')
-        ->and($destination)->toStartWith(database_path('migrations').DIRECTORY_SEPARATOR)
-        ->and(basename($destination))->toMatch('/^\d{4}_\d{2}_\d{2}_\d{6}_create_contacts_table\.php$/');
+    expect($sources)->toBe(['create_contacts_table.php', 'update_contacts_table_with_one_primary_per_kind.php']);
+
+    foreach ($destinations as $destination) {
+        expect($destination)->toStartWith(database_path('migrations').DIRECTORY_SEPARATOR);
+    }
+
+    expect(basename($destinations[0]))->toMatch('/^\d{4}_\d{2}_\d{2}_\d{6}_create_contacts_table\.php$/')
+        ->and(basename($destinations[1]))->toMatch('/^\d{4}_\d{2}_\d{2}_\d{6}_update_contacts_table_with_one_primary_per_kind\.php$/')
+        // The index migration runs after the table it indexes: its timestamp sorts later.
+        ->and(strcmp(basename($destinations[0]), basename($destinations[1])))->toBeLessThan(0);
 });
 
 it('loads the package translations', function (): void {

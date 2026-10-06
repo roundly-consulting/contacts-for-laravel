@@ -4,18 +4,33 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Contacts\Actions;
 
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use RoundlyConsulting\Contacts\Events\PrimaryContactChanged;
 use RoundlyConsulting\Contacts\Exceptions\PrimaryContactConflict;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Support\KindGroup;
 use RoundlyConsulting\PackageToolkit\Support\Config;
 
+/**
+ * Make a contact the one primary of its owner + kind group, demoting the rest — in one
+ * transaction, under a lock on the group, so two concurrent promotions cannot both win. The
+ * stored row is the source of truth: its group and trash state are read under the lock, never
+ * taken from the caller's in-memory copy.
+ *
+ * The lock serialises promotions on MySQL and PostgreSQL alike. PostgreSQL's lock cannot see a
+ * primary another transaction writes after it was taken; the partial unique index the package
+ * ships (PostgreSQL and SQLite) refuses that second primary, and the promotion retries once
+ * against the committed winner. MySQL has no partial index, so a primary written past the
+ * actions there relies on the lock alone; owner-less contacts are not covered by the index
+ * (NULL owners never collide in a unique index) and rely on the lock too.
+ */
 final readonly class SetPrimaryContactAction
 {
     /**
      * @throws PrimaryContactConflict when the contact is deleted, or has no owner while
      *                                `contacts.require_owner_for_primary` is on
+     * @throws ModelNotFoundException<Contact> when the contact is gone
      */
     public function execute(Contact $contact): Contact
     {
@@ -27,33 +42,47 @@ final readonly class SetPrimaryContactAction
             throw PrimaryContactConflict::requiresOwner();
         }
 
-        return DB::transaction(function () use ($contact): Contact {
-            $previous = $this->demoteSiblings($contact);
+        try {
+            $previous = $this->attempt($contact);
+        } catch (UniqueConstraintViolationException) {
+            // A racing promotion committed a primary the lock could not see (on PostgreSQL: a
+            // row written after the lock was taken), and the one-primary index refused ours.
+            // The winner is visible now, so a second pass demotes it.
+            $previous = $this->attempt($contact);
+        }
 
-            if (! $contact->is_primary) {
-                $contact->is_primary = true;
-                $contact->save();
-            }
+        event(new PrimaryContactChanged($contact->refresh(), $previous));
 
-            event(new PrimaryContactChanged($contact->refresh(), $previous));
-
-            return $contact;
-        });
+        return $contact;
     }
 
     /**
-     * Demote any other primary contact of the same kind for the same owner.
+     * @return Contact|null the primary the contact took over from
      */
-    private function demoteSiblings(Contact $contact): ?Contact
+    private function attempt(Contact $contact): ?Contact
     {
-        $query = KindGroup::of($contact)
-            ->where('is_primary', true)
-            ->whereKeyNot($contact->getKey());
+        return $contact->getConnection()->transaction(function () use ($contact): ?Contact {
+            $stored = KindGroup::lockWith(
+                $contact->newQueryWithoutScopes()->whereKey($contact->getKey())->firstOrFail(),
+            );
 
-        $previous = $query->first();
+            if ($stored->trashed()) {
+                throw PrimaryContactConflict::trashed();
+            }
 
-        $query->update(['is_primary' => false]);
+            $siblings = KindGroup::of($stored)
+                ->whereKeyNot($stored->getKey())
+                ->where('is_primary', true);
 
-        return $previous;
+            $previous = (clone $siblings)->first();
+
+            $siblings->update(['is_primary' => false]);
+
+            if (! $stored->is_primary) {
+                $stored->newQueryWithoutScopes()->whereKey($stored->getKey())->update(['is_primary' => true]);
+            }
+
+            return $previous;
+        }, 3);
     }
 }

@@ -13,7 +13,8 @@ $migrations = __DIR__.'/../../database/migrations';
 /**
  * P — the publish-only guards. The fleet publishes migrations timestamped rather than
  * auto-loading them; doing both runs both copies and dies on a duplicate table (bug #5,
- * on three packages). `count: 1` pins the file count so neither check can pass over an
+ * on three packages). `count: 2` pins the file count — `create_contacts_table` and the
+ * one-primary index added after 1.0 (chat review C-1) — so neither check can pass over an
  * empty or relocated directory.
  */
 it('never auto-loads its migrations — the host publishes them', function (): void {
@@ -21,7 +22,7 @@ it('never auto-loads its migrations — the host publishes them', function (): v
 });
 
 it('publishes every migration timestamp-injected into the host', function (): void {
-    expect(ContactsServiceProvider::class)->toPublishMigrationsTimestamped('contacts-migrations', 1);
+    expect(ContactsServiceProvider::class)->toPublishMigrationsTimestamped('contacts-migrations', 2);
 });
 
 /**
@@ -31,8 +32,11 @@ it('publishes every migration timestamp-injected into the host', function (): vo
  * `MigrationGraph::assertRunnable()` checks two independent things and only one is about
  * foreign keys: it also pins that a `Schema::table()` ALTER sorts at or after the CREATE
  * of the table it alters (approvals #2). Contacts ships **one CREATE, zero FK edges and
- * zero ALTERs** — verified against the migration source, not the row spec — so *both*
- * halves are inert. There is no edge to order and no ALTER to place.
+ * zero `Schema::table()` ALTERs** — verified against the migration source, not the row
+ * spec — so *both* halves are inert. The second migration adds a partial unique index with
+ * a raw `create unique index` statement (the schema builder has no partial indexes), which
+ * the graph does not parse; its order after the CREATE is pinned in ServiceProviderTest
+ * instead ("publishes both migrations … in order").
  *
  * The contrast with the packages either side of it in this wave is the clean
  * illustration: `approvals` also has 0 FKs but ships 2 ALTERs, so it adopts M with a
@@ -50,18 +54,21 @@ it('publishes every migration timestamp-injected into the host', function (): vo
  * `SQLiteGrammar::typeJsonb()` renders it as plain `text` unless `use_native_jsonb` is
  * on, so the sqlite leg would call a broken jsonb column green forever.
  *
- * `migrations: 1` pins the count, and the expectation additionally fails a set that
+ * `migrations: 2` pins the count, and the expectation additionally fails a set that
  * "applies cleanly" while creating no tables — an empty `up()` otherwise passes and
- * proves nothing.
+ * proves nothing. On the pgsql leg it also proves the partial unique index's DDL.
  *
- * The negative control (`toRejectBrokenOrderOnConnection`) is deliberately NOT adopted:
- * it asserts the engine *refuses* a reordered set, and with a single migration the
- * reversed list is the same list — and with zero foreign keys Postgres has nothing to
- * refuse regardless, so it would fail loudly by design. That is the assertion working
- * correctly against a shape it does not fit, not a red to chase.
+ * The negative control (`toRejectBrokenOrderOnConnection`) is adopted since the second
+ * migration: run before the CREATE, the index migration's duplicate demotion reads a table
+ * that does not exist yet, which Postgres refuses as an ordering error (42P01). With one
+ * migration there was no order to break.
  */
 it('applies its migrations on postgres', function () use ($migrations): void {
-    expect($migrations)->toApplyOnConnection('pgsql', migrations: 1);
+    expect($migrations)->toApplyOnConnection('pgsql', migrations: 2);
+})->skip(fn (): bool => ! test()->connectionAvailable('pgsql'), 'no postgres connection available');
+
+it('is refused by postgres in the wrong order', function () use ($migrations): void {
+    expect($migrations)->toRejectBrokenOrderOnConnection(fn (array $files): array => array_reverse($files), 'pgsql');
 })->skip(fn (): bool => ! test()->connectionAvailable('pgsql'), 'no postgres connection available');
 
 /**
