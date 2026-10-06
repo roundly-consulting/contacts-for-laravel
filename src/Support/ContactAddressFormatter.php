@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Contacts\Support;
 
 use RoundlyConsulting\Addresses\Address;
+use RoundlyConsulting\Addresses\AddressManager;
 use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
 use RoundlyConsulting\Addresses\Support\AddressModel;
 use RoundlyConsulting\Contacts\Models\Contact;
@@ -38,13 +39,45 @@ final class ContactAddressFormatter
     {
         $address = $contact->addAddress(self::asPrimary($data));
 
+        self::mirror($contact, $address);
+
+        return $address;
+    }
+
+    /**
+     * Replace the contact's structured address with new data and mirror its render onto
+     * `value`. The structured address is the contact's primary Address — or, for a row
+     * attached before it was made primary, the Address its `$mirrored` value renders. It is
+     * overwritten in place (same row, `Addresses::update()`), so syncing an unchanged address
+     * leaves it alone; a contact with none gets the new one attached.
+     */
+    public static function replace(Contact $contact, AddressData $data, ?string $mirrored): Address
+    {
+        $current = $contact->primaryAddress() ?? $contact->addresses()->get()->first(
+            static fn (Address $address): bool => $mirrored !== null && $address->formatted() === $mirrored,
+        );
+
+        if (! $current instanceof Address) {
+            return self::attach($contact, $data);
+        }
+
+        $address = app(AddressManager::class)->update($current, self::asPrimary($data));
+
+        self::mirror($contact, $address);
+
+        return $address;
+    }
+
+    /**
+     * Keep the contact's loose `value` equal to the address's one-line render.
+     */
+    private static function mirror(Contact $contact, Address $address): void
+    {
         $formatted = $address->formatted();
 
         if ($formatted !== '' && $contact->value !== $formatted) {
             $contact->forceFill(['value' => $formatted])->save();
         }
-
-        return $address;
     }
 
     /**

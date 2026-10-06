@@ -8,13 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
-use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Events\ContactAdded;
 use RoundlyConsulting\Contacts\Exceptions\InvalidContactValue;
 use RoundlyConsulting\Contacts\Models\Contact;
-use RoundlyConsulting\Contacts\Rules\ValidContactValue;
 use RoundlyConsulting\Contacts\Support\ContactAddressFormatter;
 use RoundlyConsulting\Contacts\Support\ContactModel;
+use RoundlyConsulting\Contacts\Support\ContactPreflight;
 use RoundlyConsulting\PackageToolkit\Support\Config;
 
 /**
@@ -28,23 +27,12 @@ final readonly class AddContactAction
         private SetPrimaryContactAction $setPrimary,
     ) {}
 
+    /**
+     * @throws InvalidContactValue
+     */
     public function execute(Model $owner, ContactData $data): Contact
     {
-        if ($data->address instanceof AddressData) {
-            if ($data->type !== ContactType::Address) {
-                throw InvalidContactValue::structuredAddressOn($data->kind);
-            }
-
-            if (trim($data->value) === '') {
-                $data = $data->withValue(ContactAddressFormatter::fromData($data->address));
-            }
-        }
-
-        $data = $data->normalized();
-
-        if (! ValidContactValue::passes($data->type, $data->value, $data->kind)) {
-            throw InvalidContactValue::forType($data->type, $data->value, $data->kind);
-        }
+        $data = ContactPreflight::prepare($data);
 
         $model = ContactModel::class();
 

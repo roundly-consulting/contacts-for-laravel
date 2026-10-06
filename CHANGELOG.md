@@ -43,6 +43,11 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 - `relationsOfKind()` honours `connections.enforce_active_on_check` like the connections listing
   helpers: while it is on (the default), blocked, pending and expired relationships are left out.
   Turn the flag off to list them again.
+- `Contacts::update()` honours `ContactData::$address` like `add()` does: a structured address on a
+  non-address kind is refused (`InvalidContactValue::structuredAddressOn()`), a blank value becomes
+  the address's render, and the contact's structured `Address` is replaced in the same transaction
+  as the row, so `formattedAddress()` renders the new one. A value-only update keeps the structured
+  address.
 
 ## 1.0.1 - 2026-10-04
 
