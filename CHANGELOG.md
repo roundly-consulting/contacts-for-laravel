@@ -48,6 +48,9 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
   the address's render, and the contact's structured `Address` is replaced in the same transaction
   as the row, so `formattedAddress()` renders the new one. A value-only update keeps the structured
   address.
+- `sync()` matches a structured-address item (blank value + `address:`) by its rendered address, so
+  syncing the same address again updates the contact in place instead of deleting and re-adding it
+  (new id, lost verification, cascade-trashed address and connections).
 
 ## 1.0.1 - 2026-10-04
 

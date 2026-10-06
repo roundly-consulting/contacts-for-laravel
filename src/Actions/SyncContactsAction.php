@@ -10,6 +10,7 @@ use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Support\ContactModel;
+use RoundlyConsulting\Contacts\Support\ContactPreflight;
 
 final readonly class SyncContactsAction
 {
@@ -55,10 +56,12 @@ final readonly class SyncContactsAction
                 address: $item->address,
             );
 
-            $normalizedValue = $type->normalize($item->value);
+            // Matched on the value as it would be stored — an address-only item's is the render
+            // of its structured address, never the blank it was given.
+            $data = ContactPreflight::prepare($data);
 
             $match = $existing->first(
-                fn (Contact $contact): bool => $contact->value === $normalizedValue,
+                fn (Contact $contact): bool => $contact->value === $data->value,
             );
 
             if ($match instanceof Contact) {
