@@ -8,5 +8,7 @@ it('pins the facade to the manager, its fake and every action', function (): voi
     expect(Contacts::class)
         ->toDocumentItsRoot()
         ->toBeFakeable()
-        ->toReachEveryAction(__DIR__.'/../../src/Actions');
+        ->toReachEveryAction(__DIR__.'/../../src/Actions')
+        // confirmVerification($token): the facade frame must not hold the verification token
+        ->toRedactSensitiveArguments(methods: 1);
 });

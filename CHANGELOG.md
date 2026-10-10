@@ -10,6 +10,10 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 
 - Maintenance: CI also runs the test suite against MySQL 8, alongside SQLite and PostgreSQL.
 
+### Security
+
+- A flat `Contacts::confirmVerification()` facade call no longer leaves the `#[SensitiveParameter]` verification token in the facade's stack frame, where error trackers that collect frame arguments could read it (`Contacts::verification()->confirm()` was never affected). Requires package-toolkit `^1.3`.
+
 ## 1.1.0 - 2026-10-06
 
 ### Added

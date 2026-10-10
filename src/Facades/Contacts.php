@@ -15,6 +15,7 @@ use RoundlyConsulting\Contacts\ContactVerification;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Testing\ContactsFake;
+use RoundlyConsulting\PackageToolkit\Concerns\RedactsSensitiveArguments;
 
 /**
  * @method static ContactBook for(Model $owner)
@@ -29,6 +30,8 @@ use RoundlyConsulting\Contacts\Testing\ContactsFake;
  */
 final class Contacts extends Facade
 {
+    use RedactsSensitiveArguments;
+
     /**
      * Swap the manager for a recording fake that writes nothing.
      */
