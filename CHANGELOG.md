@@ -6,8 +6,12 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+## 1.1.1 - 2026-10-11
+
 ### Changed
 
+- Maintenance: `roundly-consulting/package-toolkit-for-laravel` is now required at `^1.3` (was
+  `^1.0`); the facade fix below builds on it, so `composer update` pulls it in.
 - Maintenance: CI also runs the test suite against MySQL 8, alongside SQLite and PostgreSQL.
 
 ### Security
