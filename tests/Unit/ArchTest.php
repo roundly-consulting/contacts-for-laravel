@@ -76,6 +76,13 @@ ArchPresets::noLocalCryptoPrimitives('RoundlyConsulting\Contacts');
 ArchPresets::modelsResolveThroughSeam(__DIR__.'/../../src', 'Support', ['contacts.model']);
 
 /**
+ * The factory half of the seam: ContactFactory returns the ContactModel seam from
+ * `modelName()`, so a host that swapped `contacts.model` gets its own rows (and events)
+ * out of `Contact::factory()`. Already true; this keeps it true.
+ */
+ArchPresets::factoriesResolveThroughSeam(__DIR__.'/../../database/factories', __DIR__.'/../../src', 'Support');
+
+/**
  * The morph-key seam, guarded. Contacts migrated its owner morph column off raw
  * `$table->morphs()` onto `morphKey($name, KeyType::…)` so a uuid/ulid host can flip its
  * whole graph coherently — a hardcoded bigint id breaks those hosts on Postgres, and SQLite
