@@ -54,4 +54,12 @@ abstract class TestCase extends PackageTestCase
             __DIR__.'/database/migrations',
         ];
     }
+
+    /**
+     * Migrate once per worker and schema signature, then reset only the data between tests.
+     */
+    protected function keepsMigratedSchema(): bool
+    {
+        return true;
+    }
 }
