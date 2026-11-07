@@ -378,7 +378,8 @@ class Contact extends Model implements Addressable, Connectable
                     // Stamped with the contact's own deletion time: that shared stamp is how
                     // restore() tells what went down with the contact from what a host had
                     // deleted on its own before.
-                    $child->forceFill([$child->getDeletedAtColumn() => $trashedAt])->saveQuietly();
+                    $child->setAttribute($child->getDeletedAtColumn(), $trashedAt);
+                    $child->saveQuietly();
                 });
             }
         });
