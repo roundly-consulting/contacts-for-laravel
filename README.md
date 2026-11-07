@@ -25,7 +25,7 @@ owner keeps one primary per kind, and contacts can be verified with a code and e
 
 ## Installation
 
-Requires PHP 8.4, Laravel 12 or 13.
+Requires PHP 8.4 and Laravel 13.
 
 ```bash
 composer require roundly-consulting/contacts-for-laravel
