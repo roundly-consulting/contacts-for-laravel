@@ -6,6 +6,8 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+## 2.1.0 - 2026-11-11
+
 ### Added
 
 - `Contacts::for($owner)->update()`, `->delete()` and `->setPrimary()`: owner-checked versions of the
