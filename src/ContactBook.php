@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Addresses\DataTransferObjects\AddressData;
 use RoundlyConsulting\Contacts\DataTransferObjects\ContactData;
 use RoundlyConsulting\Contacts\Enums\ContactType;
+use RoundlyConsulting\Contacts\Exceptions\ContactNotOwned;
 use RoundlyConsulting\Contacts\Models\Contact;
 use RoundlyConsulting\Contacts\Support\ContactModel;
 use RoundlyConsulting\Contacts\Support\VCardExporter;
@@ -98,6 +99,36 @@ final readonly class ContactBook
     }
 
     /**
+     * `Contacts::update()`, refused unless the contact belongs to this owner.
+     *
+     * @throws ContactNotOwned
+     */
+    public function update(Contact $contact, ContactData $data): Contact
+    {
+        return $this->contacts->update($this->owned($contact), $data);
+    }
+
+    /**
+     * `Contacts::delete()`, refused unless the contact belongs to this owner.
+     *
+     * @throws ContactNotOwned
+     */
+    public function delete(Contact $contact): void
+    {
+        $this->contacts->delete($this->owned($contact));
+    }
+
+    /**
+     * `Contacts::setPrimary()`, refused unless the contact belongs to this owner.
+     *
+     * @throws ContactNotOwned
+     */
+    public function setPrimary(Contact $contact): Contact
+    {
+        return $this->contacts->setPrimary($this->owned($contact));
+    }
+
+    /**
      * Every contact of this owner, by position.
      *
      * @return EloquentCollection<int, Contact>
@@ -137,6 +168,30 @@ final readonly class ContactBook
     private function query(): Builder
     {
         return ContactModel::class()::query()->forOwner($this->owner)->ordered();
+    }
+
+    /**
+     * The contact, if this owner holds it: the same morph type and the same key, compared
+     * as strings so int, uuid and ulid keys all match the stored `owner_id`. An owner-less
+     * contact and an owner without a key never match.
+     *
+     * @throws ContactNotOwned
+     */
+    private function owned(Contact $contact): Contact
+    {
+        $key = $this->owner->getKey();
+        $ownerId = $contact->getAttribute('owner_id');
+
+        $owns = is_scalar($key) && $key !== ''
+            && is_scalar($ownerId)
+            && $contact->getAttribute('owner_type') === $this->owner->getMorphClass()
+            && (string) $ownerId === (string) $key;
+
+        if (! $owns) {
+            throw ContactNotOwned::make();
+        }
+
+        return $contact;
     }
 
     private function pending(): PendingContact

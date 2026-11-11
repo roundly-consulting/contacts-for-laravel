@@ -8,4 +8,5 @@ return [
     'invalid_verification_token' => 'The verification token is invalid.',
     'verification_expired' => 'The verification token has expired.',
     'verification_attempts_exceeded' => 'Too many incorrect verification attempts. Request a new token.',
+    'not_owned' => 'The contact does not belong to the given owner.',
 ];

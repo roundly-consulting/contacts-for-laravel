@@ -8,4 +8,5 @@ return [
     'invalid_verification_token' => 'Overovací kód je neplatný.',
     'verification_expired' => 'Platnosť overovacieho kódu vypršala.',
     'verification_attempts_exceeded' => 'Príliš veľa nesprávnych pokusov o overenie. Vyžiadajte si nový kód.',
+    'not_owned' => 'Kontakt nepatrí zadanému vlastníkovi.',
 ];

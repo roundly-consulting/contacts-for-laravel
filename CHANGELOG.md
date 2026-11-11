@@ -6,6 +6,17 @@ All notable changes to `contacts-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+### Added
+
+- `Contacts::for($owner)->update()`, `->delete()` and `->setPrimary()`: owner-checked versions of the
+  bare facade writes. A contact of another owner — another key, or another model type sharing the
+  key — an owner-less contact, or an owner without a key is refused with the new
+  `ContactNotOwned` (a `ContactException`) before anything is written or any event fires. Keys are
+  compared as strings, so int, uuid and ulid owners all work. `Contacts::fake()` records the
+  allowed calls as before and nothing on a refusal. `Contacts::update()`, `delete()` and
+  `setPrimary()` are unchanged.
+- Translation key `contacts::errors.not_owned` (en, sk).
+
 ## 2.0.0 - 2026-11-07
 
 ### Changed
